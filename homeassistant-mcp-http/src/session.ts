@@ -9,7 +9,7 @@ const DATA_DIR = '/data';
 const SESSIONS_FILE = join(DATA_DIR, 'sessions.json');
 const ENCRYPTION_KEY_FILE = join(DATA_DIR, 'encryption.key');
 
-interface Session {
+export interface Session {
   access_token: string;
   refresh_token: string;
   expires_at: number;
