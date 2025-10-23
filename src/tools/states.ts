@@ -42,11 +42,21 @@ export function registerStateTools(tools: Map<string, Function>) {
   tools.set('ha_call_service', async (client: HomeAssistantClient, args: any) => {
     const { domain, service, entity_id, service_data } = args;
 
+    // Parse service_data JSON with error handling
+    let parsedData;
+    if (service_data) {
+      try {
+        parsedData = JSON.parse(service_data);
+      } catch (error: any) {
+        throw new Error(`Invalid service_data JSON: ${error.message}`);
+      }
+    }
+
     const result = await client.callService({
       domain,
       service,
       target: entity_id ? { entity_id } : undefined,
-      service_data: service_data ? JSON.parse(service_data) : undefined
+      service_data: parsedData
     });
 
     return {

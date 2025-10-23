@@ -13,7 +13,13 @@ const MAX_BACKUPS = 5;
  */
 export async function backupFile(filePath: string): Promise<BackupMetadata> {
   // Ensure backup directory exists
-  await fs.mkdir(BACKUP_DIR, { recursive: true });
+  try {
+    await fs.mkdir(BACKUP_DIR, { recursive: true });
+  } catch (error: any) {
+    if (error.code !== 'EEXIST') {
+      throw new Error(`Failed to create backup directory: ${error.message}`);
+    }
+  }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const fileName = basename(filePath);

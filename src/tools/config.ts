@@ -2,11 +2,27 @@
 // ABOUTME: Provides ha_read_config, ha_write_config, ha_list_files, ha_validate_config, ha_reload_config
 
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { HomeAssistantClient } from '../ha-client.js';
 import { backupFile, listBackups } from '../backup.js';
 
 const CONFIG_DIR = '/config';
+
+/**
+ * Validate that a user-provided path is within the config directory
+ * Prevents path traversal attacks
+ */
+function validatePath(userPath: string): string {
+  const fullPath = join(CONFIG_DIR, userPath);
+  const normalized = resolve(fullPath);
+
+  // Ensure the resolved path is within CONFIG_DIR
+  if (!normalized.startsWith(resolve(CONFIG_DIR))) {
+    throw new Error('Invalid path: access outside config directory not allowed');
+  }
+
+  return normalized;
+}
 
 export function registerConfigTools(tools: Map<string, Function>) {
   // Read configuration file
@@ -17,7 +33,7 @@ export function registerConfigTools(tools: Map<string, Function>) {
       throw new Error('path is required');
     }
 
-    const fullPath = join(CONFIG_DIR, path);
+    const fullPath = validatePath(path);
     const content = await fs.readFile(fullPath, 'utf-8');
 
     return {
@@ -35,12 +51,14 @@ export function registerConfigTools(tools: Map<string, Function>) {
       throw new Error('path and content are required');
     }
 
-    const fullPath = join(CONFIG_DIR, path);
+    const fullPath = validatePath(path);
 
     // Backup existing file if it exists
+    let backupPath: string | undefined;
     try {
       await fs.access(fullPath);
       const backup = await backupFile(fullPath);
+      backupPath = backup.path;
       console.error(`Backed up to: ${backup.path}`);
     } catch {
       // File doesn't exist, no backup needed
@@ -53,6 +71,11 @@ export function registerConfigTools(tools: Map<string, Function>) {
     if (validate) {
       const validation = await client.validateConfig();
       if (!validation.valid) {
+        // ROLLBACK: Restore from backup if it exists
+        if (backupPath) {
+          await fs.copyFile(backupPath, fullPath);
+          console.error(`Rolled back to backup due to validation failure`);
+        }
         throw new Error(`Configuration validation failed: ${validation.errors?.join(', ')}`);
       }
     }
@@ -69,7 +92,7 @@ export function registerConfigTools(tools: Map<string, Function>) {
   tools.set('ha_list_files', async (client: HomeAssistantClient, args: any) => {
     const { path = '', pattern } = args;
 
-    const fullPath = join(CONFIG_DIR, path);
+    const fullPath = validatePath(path);
     const entries = await fs.readdir(fullPath, { withFileTypes: true });
 
     let files = entries.map(entry => ({

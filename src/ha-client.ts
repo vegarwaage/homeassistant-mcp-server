@@ -100,8 +100,10 @@ export class HomeAssistantClient {
   async execCliCommand(command: string): Promise<string> {
     try {
       const { stdout, stderr } = await execAsync(`ha ${command}`);
+      // Log stderr as warning but don't treat it as an error
+      // Many CLI tools write informational messages to stderr
       if (stderr) {
-        throw new Error(stderr);
+        console.error(`CLI warning: ${stderr}`);
       }
       return stdout;
     } catch (error: any) {

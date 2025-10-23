@@ -43,7 +43,7 @@ export function registerAutomationTools(tools: Map<string, Function>) {
     }
 
     // Backup existing file
-    await backupFile(AUTOMATIONS_FILE);
+    const backup = await backupFile(AUTOMATIONS_FILE);
 
     // Read existing automations
     const automations = await readAutomations();
@@ -57,6 +57,9 @@ export function registerAutomationTools(tools: Map<string, Function>) {
     // Validate
     const validation = await client.validateConfig();
     if (!validation.valid) {
+      // ROLLBACK: Restore from backup
+      await fs.copyFile(backup.path, AUTOMATIONS_FILE);
+      console.error(`Rolled back to backup due to validation failure`);
       throw new Error(`Validation failed: ${validation.errors?.join(', ')}`);
     }
 
@@ -82,7 +85,7 @@ export function registerAutomationTools(tools: Map<string, Function>) {
     updatedAutomation.id = automation_id;
 
     // Backup
-    await backupFile(AUTOMATIONS_FILE);
+    const backup = await backupFile(AUTOMATIONS_FILE);
 
     // Read, update, write
     const automations = await readAutomations();
@@ -98,6 +101,9 @@ export function registerAutomationTools(tools: Map<string, Function>) {
     // Validate and reload
     const validation = await client.validateConfig();
     if (!validation.valid) {
+      // ROLLBACK: Restore from backup
+      await fs.copyFile(backup.path, AUTOMATIONS_FILE);
+      console.error(`Rolled back to backup due to validation failure`);
       throw new Error(`Validation failed: ${validation.errors?.join(', ')}`);
     }
 
