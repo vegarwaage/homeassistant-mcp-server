@@ -277,6 +277,9 @@ class HAMCPServer {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
     console.error('Home Assistant MCP Server running on stdio');
+
+    // Keep the process alive
+    process.stdin.resume();
   }
 }
 
