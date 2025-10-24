@@ -22,13 +22,13 @@ export class HomeAssistantClient {
   private baseUrl: string;
   private token: string;
 
-  constructor(baseUrl: string = 'http://supervisor', token: string = process.env.SUPERVISOR_TOKEN || '') {
+  constructor(baseUrl: string = 'http://homeassistant:8123', token: string = process.env.SUPERVISOR_TOKEN || '') {
     this.baseUrl = baseUrl;
     this.token = token;
 
     // REST API client
     this.apiClient = axios.create({
-      baseURL: `${baseUrl}/core/api`,
+      baseURL: `${baseUrl}/api`,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
