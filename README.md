@@ -2,6 +2,10 @@
 
 MCP (Model Context Protocol) server for integrating Home Assistant with Claude Code and Claude Desktop.
 
+**Status**: ✅ Fully working with stdio transport (SSH-based)
+**Version**: 0.1.3
+**Last Updated**: October 25, 2025
+
 ## Features
 
 ### Entity & State Management
@@ -54,27 +58,26 @@ Configure via addon configuration UI:
 log_level: info  # debug, info, warning, error
 ```
 
+## Architecture
+
+The server uses a **monolithic with transport layer** design:
+- **Core**: Unified codebase with all Home Assistant tools
+- **Transport**: stdio (SSH-based) - fully working
+- **Future**: HTTP transport with OAuth (disabled, pending Claude.ai OAuth completion)
+
 ## Connecting Claude Clients
 
-### Claude Code
+### Claude Code (Recommended Method)
 
-Edit `~/.claude/mcp_settings.json`:
+Use the CLI to configure MCP server:
 
-```json
-{
-  "mcpServers": {
-    "homeassistant": {
-      "command": "ssh",
-      "args": [
-        "-p", "22",
-        "-i", "~/.ssh/id_rsa",
-        "root@homeassistant.local",
-        "docker", "exec", "-i", "addon_local_homeassistant_mcp", "node", "/app/dist/index.js"
-      ]
-    }
-  }
-}
+```bash
+claude mcp add --transport stdio --scope user homeassistant \
+  ssh root@homeassistant.local \
+  "cd /root/ha-mcp-server && SUPERVISOR_TOKEN='your_token_here' node dist/index.js"
 ```
+
+This updates `~/.claude.json` with the correct configuration.
 
 ### Claude Desktop
 
@@ -132,9 +135,39 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac):
 - **Rollback**: Last 5 versions kept for each file
 - **Confirmation**: Destructive actions require explicit confirmation
 
+## Project Structure
+
+```
+homeassistant-mcp-server/
+├── src/
+│   ├── index.ts              # Server entry point
+│   ├── ha-client.ts          # Home Assistant client
+│   ├── types.ts              # TypeScript interfaces
+│   ├── backup.ts             # Backup system
+│   └── tools/                # Tool implementations
+│       ├── states.ts         # Entity & state tools
+│       ├── config.ts         # Configuration tools
+│       ├── automation.ts     # Automation tools
+│       └── system.ts         # System & diagnostic tools
+├── docs/
+│   ├── plans/                # Current implementation plans
+│   └── archive/              # Historical design documents
+└── package.json
+```
+
+## Recent Changes
+
+### October 25, 2025 - Refactoring Release
+- ✅ Extracted tool definitions to eliminate duplication (DRY)
+- ✅ Made environment variables explicit with validation
+- ✅ Improved error handling with clear warnings
+- ✅ Reduced index.ts from 289 to 124 lines
+- ✅ All 17 tools now have co-located schemas and handlers
+
 ## Development
 
 ```bash
+cd homeassistant-mcp-server
 npm install
 npm run build
 npm start
