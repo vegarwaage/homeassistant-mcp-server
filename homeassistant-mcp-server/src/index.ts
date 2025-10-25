@@ -14,6 +14,16 @@ import { registerConfigTools } from './tools/config.js';
 import { registerAutomationTools } from './tools/automation.js';
 import { registerSystemTools } from './tools/system.js';
 
+// Extract and validate environment variables
+const HA_BASE_URL = process.env.HA_BASE_URL || 'http://homeassistant:8123';
+const SUPERVISOR_TOKEN = process.env.SUPERVISOR_TOKEN;
+
+if (!SUPERVISOR_TOKEN) {
+  console.error('ERROR: SUPERVISOR_TOKEN environment variable is required');
+  console.error('Please set SUPERVISOR_TOKEN before starting the server');
+  process.exit(1);
+}
+
 class HAMCPServer {
   private server: Server;
   private haClient: HomeAssistantClient;
@@ -32,7 +42,7 @@ class HAMCPServer {
       }
     );
 
-    this.haClient = new HomeAssistantClient();
+    this.haClient = new HomeAssistantClient(HA_BASE_URL, SUPERVISOR_TOKEN);
     this.tools = new Map();
 
     this.setupHandlers();
