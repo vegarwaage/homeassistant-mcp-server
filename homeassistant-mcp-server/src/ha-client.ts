@@ -338,4 +338,19 @@ export class HomeAssistantClient {
     const response = await this.apiClient.post('/history/statistics', data);
     return response.data;
   }
+
+  /**
+   * Fire a custom event with optional data payload
+   */
+  async fireEvent(eventType: string, eventData?: Record<string, any>): Promise<void> {
+    await this.apiClient.post(`/events/${eventType}`, eventData || {});
+  }
+
+  /**
+   * Get all active event listeners and their counts
+   */
+  async getEventListeners(): Promise<any[]> {
+    const response = await this.apiClient.get('/events');
+    return response.data;
+  }
 }
