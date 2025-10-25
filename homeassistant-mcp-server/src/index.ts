@@ -27,6 +27,10 @@ import { registerLogbookTools } from './tools/logbook.js';
 import { registerBlueprintsTools } from './tools/blueprints.js';
 import { registerNotificationsTools } from './tools/notifications.js';
 import { createStdioTransport, createHttpTransport } from './transports/index.js';
+import { initSession, grantPermission } from './permissions.js';
+import { filesystemTools, handleFilesystemTool } from './tools/filesystem.js';
+import { databaseTools, handleDatabaseTool } from './tools/database.js';
+import { systemTools as rootSystemTools, handleSystemTool } from './tools/system.js';
 
 // Extract and validate environment variables
 const HA_BASE_URL = process.env.HA_BASE_URL || 'http://homeassistant:8123';
@@ -57,6 +61,8 @@ class HAMCPServer {
   private server: Server;
   private haClient: HomeAssistantClient;
   private tools: Map<string, ToolDefinition>;
+  private rootTools: Map<string, any>;
+  private sessionId: string;
 
   constructor() {
     this.server = new Server(
@@ -73,6 +79,11 @@ class HAMCPServer {
 
     this.haClient = new HomeAssistantClient(HA_BASE_URL, SUPERVISOR_TOKEN);
     this.tools = new Map();
+    this.rootTools = new Map();
+    this.sessionId = 'default';
+
+    // Initialize session for permission tracking
+    initSession(this.sessionId);
 
     this.setupHandlers();
     this.registerTools();
@@ -81,19 +92,82 @@ class HAMCPServer {
   private setupHandlers() {
     // List available tools
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      const toolList = Array.from(this.tools.values()).map(tool => ({
+      const apiTools = Array.from(this.tools.values()).map(tool => ({
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema
       }));
 
-      return { tools: toolList };
+      const rootTools = Array.from(this.rootTools.values()).map(tool => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema
+      }));
+
+      return { tools: [...apiTools, ...rootTools] };
     });
 
     // Execute tool
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { name, arguments: args } = request.params;
 
+      // Check if this is a root-level tool
+      const rootTool = this.rootTools.get(name);
+      if (rootTool) {
+        try {
+          let result;
+
+          // Route to appropriate handler based on tool name prefix
+          if (name.startsWith('ha_read_file') || name.startsWith('ha_write_file') ||
+              name.startsWith('ha_list_directory') || name.startsWith('ha_delete_file') ||
+              name.startsWith('ha_move_file') || name.startsWith('ha_file_info')) {
+            result = await handleFilesystemTool(name, args || {}, this.sessionId);
+          } else if (name.startsWith('ha_execute_sql') || name.startsWith('ha_get_state_history') ||
+                     name.startsWith('ha_get_statistics') || name.startsWith('ha_purge_database') ||
+                     name.startsWith('ha_database_info')) {
+            result = await handleDatabaseTool(name, args || {}, this.sessionId);
+          } else if (name === 'ha_execute_command' || name === 'ha_read_logs' ||
+                     name === 'ha_get_disk_usage' || name === 'ha_restart_homeassistant') {
+            result = await handleSystemTool(name, args || {}, this.sessionId);
+          } else {
+            throw new Error(`Unknown root tool handler for: ${name}`);
+          }
+
+          // Handle permission requests
+          if (result.error === 'permission_required') {
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: result.message,
+                },
+              ],
+              isError: false,
+            };
+          }
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        } catch (error: any) {
+          return {
+            content: [
+              {
+                type: 'text',
+                text: `Error: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      // Handle API-level tools
       const tool = this.tools.get(name);
       if (!tool) {
         throw new Error(`Unknown tool: ${name}`);
@@ -124,7 +198,7 @@ class HAMCPServer {
   }
 
   private registerTools() {
-    // Register all tool categories
+    // Register all API-level tool categories
     const allTools = [
       ...registerStateTools(),
       ...registerConfigTools(),
@@ -146,9 +220,21 @@ class HAMCPServer {
       ...registerNotificationsTools()
     ];
 
-    // Add to map for quick lookup
+    // Add API tools to map for quick lookup
     for (const tool of allTools) {
       this.tools.set(tool.name, tool);
+    }
+
+    // Register root-level tools (filesystem, database, commands)
+    const rootLevelTools = [
+      ...filesystemTools,
+      ...databaseTools,
+      ...rootSystemTools
+    ];
+
+    // Add root tools to their own map
+    for (const tool of rootLevelTools) {
+      this.rootTools.set(tool.name, tool);
     }
   }
 
