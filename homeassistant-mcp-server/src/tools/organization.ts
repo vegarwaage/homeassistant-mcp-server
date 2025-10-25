@@ -41,16 +41,17 @@ export function registerOrganizationTools(): ToolDefinition[] {
       handler: async (client: HomeAssistantClient, args: any) => {
         try {
           // Get all areas in a single template call using Jinja2 loop
+          // Use namespace to build list (append is unsafe in HA sandbox)
           const template = `
-{%- set result = [] -%}
+{%- set ns = namespace(result=[]) -%}
 {%- for area_id in areas() -%}
-  {%- set _ = result.append({
+  {%- set ns.result = ns.result + [{
     'area_id': area_id,
     'name': area_name(area_id),
     'entity_count': area_entities(area_id) | count
-  }) -%}
+  }] -%}
 {%- endfor -%}
-{{ result | tojson }}
+{{ ns.result | tojson }}
 `;
 
           const areas = await client.renderTemplate(template);
@@ -81,16 +82,17 @@ export function registerOrganizationTools(): ToolDefinition[] {
       handler: async (client: HomeAssistantClient, args: any) => {
         try {
           // Get all labels in a single template call using Jinja2 loop
+          // Use namespace to build list (append is unsafe in HA sandbox)
           const template = `
-{%- set result = [] -%}
+{%- set ns = namespace(result=[]) -%}
 {%- for label_id in labels() -%}
-  {%- set _ = result.append({
+  {%- set ns.result = ns.result + [{
     'label_id': label_id,
     'name': label_name(label_id),
     'entity_count': label_entities(label_id) | count
-  }) -%}
+  }] -%}
 {%- endfor -%}
-{{ result | tojson }}
+{{ ns.result | tojson }}
 `;
 
           const labels = await client.renderTemplate(template);
@@ -134,39 +136,41 @@ export function registerOrganizationTools(): ToolDefinition[] {
 
           if (sanitizedAreaId) {
             // Get devices for a specific area
+            // Use namespace to build list (append is unsafe in HA sandbox)
             template = `
-{%- set result = [] -%}
+{%- set ns = namespace(result=[]) -%}
 {%- for device_id in area_devices('${sanitizedAreaId}') -%}
   {%- set device_name = device_attr(device_id, 'name') -%}
   {%- set device_entities = device_entities(device_id) | list -%}
-  {%- set _ = result.append({
+  {%- set ns.result = ns.result + [{
     'device_id': device_id,
     'name': device_name,
     'area_id': '${sanitizedAreaId}',
     'entity_ids': device_entities,
     'entity_count': device_entities | count
-  }) -%}
+  }] -%}
 {%- endfor -%}
-{{ result | tojson }}
+{{ ns.result | tojson }}
 `;
           } else {
             // Get all devices from all areas
+            // Use namespace to build list (append is unsafe in HA sandbox)
             template = `
-{%- set result = [] -%}
+{%- set ns = namespace(result=[]) -%}
 {%- for area_id in areas() -%}
   {%- for device_id in area_devices(area_id) -%}
     {%- set device_name = device_attr(device_id, 'name') -%}
     {%- set device_entities = device_entities(device_id) | list -%}
-    {%- set _ = result.append({
+    {%- set ns.result = ns.result + [{
       'device_id': device_id,
       'name': device_name,
       'area_id': area_id,
       'entity_ids': device_entities,
       'entity_count': device_entities | count
-    }) -%}
+    }] -%}
   {%- endfor -%}
 {%- endfor -%}
-{{ result | tojson }}
+{{ ns.result | tojson }}
 `;
           }
 
