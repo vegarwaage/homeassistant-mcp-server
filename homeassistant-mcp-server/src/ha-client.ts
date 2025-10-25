@@ -63,17 +63,39 @@ export class HomeAssistantClient {
    * Get historical data for entities
    */
   async getHistory(query: HAHistoryQuery): Promise<HAState[][]> {
-    const params: any = {};
-    if (query.start_time) params.filter_entity_id = query.entity_ids?.join(',');
-    if (query.end_time) params.end_time = query.end_time;
-    if (query.minimal_response) params.minimal_response = true;
+    const params = new URLSearchParams();
+
+    if (query.entity_ids?.length) {
+      params.append('filter_entity_id', query.entity_ids.join(','));
+    }
+    if (query.end_time) {
+      params.append('end_time', query.end_time);
+    }
+    if (query.minimal_response) {
+      params.append('minimal_response', 'true');
+    }
+    if (query.significant_changes_only) {
+      params.append('significant_changes_only', 'true');
+    }
 
     const endpoint = query.start_time
-      ? `/history/period/${query.start_time}`
-      : '/history/period';
+      ? `/api/history/period/${query.start_time}`
+      : '/api/history/period';
 
-    const response = await this.apiClient.get<HAState[][]>(endpoint, { params });
-    return response.data;
+    const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
+
+    const response = await fetch(`${this.baseUrl}${url}`, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`History request failed: ${response.statusText}`);
+    }
+
+    return response.json() as Promise<HAState[][]>;
   }
 
   /**

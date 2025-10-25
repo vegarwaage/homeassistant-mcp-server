@@ -13,6 +13,7 @@ import { registerConfigTools } from './tools/config.js';
 import { registerAutomationTools } from './tools/automation.js';
 import { registerSystemTools } from './tools/system.js';
 import { registerSearchTools } from './tools/search.js';
+import { registerActivityTools } from './tools/activity.js';
 import { createStdioTransport, createHttpTransport } from './transports/index.js';
 
 // Extract and validate environment variables
@@ -118,7 +119,8 @@ class HAMCPServer {
       ...registerConfigTools(),
       ...registerAutomationTools(),
       ...registerSystemTools(),
-      ...registerSearchTools()
+      ...registerSearchTools(),
+      ...registerActivityTools()
     ];
 
     // Add to map for quick lookup

@@ -39,6 +39,7 @@ export interface HAHistoryQuery {
   start_time?: string;
   end_time?: string;
   minimal_response?: boolean;
+  significant_changes_only?: boolean;
 }
 
 /**
