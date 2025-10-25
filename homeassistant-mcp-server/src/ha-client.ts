@@ -273,4 +273,69 @@ export class HomeAssistantClient {
       }
     }
   }
+
+  /**
+   * Get camera snapshot URL or base64 data
+   */
+  async getCameraSnapshot(entityId: string, format: 'url' | 'base64' = 'url'): Promise<string> {
+    if (format === 'url') {
+      // Return the camera proxy URL
+      return `${this.baseUrl}/api/camera_proxy/${entityId}`;
+    } else {
+      // Fetch the image and return as base64
+      const response = await fetch(`${this.baseUrl}/api/camera_proxy/${entityId}`, {
+        headers: {
+          'Authorization': `Bearer ${this.token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch camera snapshot: ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      return buffer.toString('base64');
+    }
+  }
+
+  /**
+   * Get energy dashboard data
+   */
+  async getEnergyData(params: {
+    period?: 'hour' | 'day' | 'week' | 'month';
+    start_time?: string;
+    end_time?: string;
+  }): Promise<any> {
+    // Home Assistant energy endpoint
+    const response = await this.apiClient.get('/energy/info');
+    return response.data;
+  }
+
+  /**
+   * Get long-term statistics for entities
+   */
+  async getStatistics(params: {
+    entity_ids: string[];
+    start_time?: string;
+    end_time?: string;
+    period?: 'hour' | 'day' | 'month';
+  }): Promise<any> {
+    const { entity_ids, start_time, end_time, period = 'hour' } = params;
+
+    const data: any = {
+      statistic_ids: entity_ids,
+      period
+    };
+
+    if (start_time) {
+      data.start_time = start_time;
+    }
+    if (end_time) {
+      data.end_time = end_time;
+    }
+
+    const response = await this.apiClient.post('/history/statistics', data);
+    return response.data;
+  }
 }

@@ -18,6 +18,9 @@ import { registerOrganizationTools } from './tools/organization.js';
 import { registerConversationTools } from './tools/conversation.js';
 import { registerMonitoringTools } from './tools/monitoring.js';
 import { registerHelpersTools } from './tools/helpers.js';
+import { registerMediaTools } from './tools/media.js';
+import { registerEnergyTools } from './tools/energy.js';
+import { registerPersonTools } from './tools/persons.js';
 import { createStdioTransport, createHttpTransport } from './transports/index.js';
 
 // Extract and validate environment variables
@@ -128,7 +131,10 @@ class HAMCPServer {
       ...registerOrganizationTools(),
       ...registerConversationTools(),
       ...registerMonitoringTools(),
-      ...registerHelpersTools()
+      ...registerHelpersTools(),
+      ...registerMediaTools(),
+      ...registerEnergyTools(),
+      ...registerPersonTools()
     ];
 
     // Add to map for quick lookup
