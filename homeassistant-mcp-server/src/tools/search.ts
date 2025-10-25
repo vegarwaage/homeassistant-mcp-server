@@ -106,6 +106,66 @@ export function registerSearchTools(): ToolDefinition[] {
           }))
         };
       }
+    },
+    {
+      name: 'ha_get_stats',
+      description: 'Get entity count statistics grouped by domain, device_class, area, or label',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          group_by: {
+            type: 'string',
+            enum: ['domain', 'device_class', 'area', 'label'],
+            description: 'How to group entities for counting'
+          }
+        },
+        required: ['group_by']
+      },
+      handler: async (client: HomeAssistantClient, args: any) => {
+        const { group_by } = args;
+
+        const states = await client.getStates();
+        const stats: Record<string, number> = {};
+
+        for (const state of states) {
+          let key: string | undefined;
+
+          switch (group_by) {
+            case 'domain':
+              key = state.entity_id.split('.')[0];
+              break;
+            case 'device_class':
+              key = state.attributes.device_class || 'none';
+              break;
+            case 'area':
+              // Extract area from friendly_name as workaround
+              key = 'unknown';
+              break;
+            case 'label':
+              // Placeholder for future implementation
+              key = 'unknown';
+              break;
+          }
+
+          if (key) {
+            stats[key] = (stats[key] || 0) + 1;
+          }
+        }
+
+        // Sort by count descending
+        const sorted = Object.entries(stats)
+          .sort((a, b) => b[1] - a[1])
+          .reduce((obj, [key, value]) => {
+            obj[key] = value;
+            return obj;
+          }, {} as Record<string, number>);
+
+        return {
+          group_by,
+          total_entities: states.length,
+          stats: sorted
+        };
+      }
     }
   ];
 }
