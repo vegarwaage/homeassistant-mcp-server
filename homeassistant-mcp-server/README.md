@@ -20,6 +20,19 @@ This addon is installed via the Home Assistant addon store after adding the cust
 log_level: info  # Options: debug, info, warning, error
 ```
 
+## Transport Configuration
+
+### stdio (Default)
+For Claude Desktop and Claude Code:
+
+```bash
+SUPERVISOR_TOKEN='your_token' node dist/index.js
+```
+
+### HTTP (Disabled)
+HTTP transport is currently disabled pending Claude.ai OAuth support.
+To enable in future: `TRANSPORT=http node dist/index.js`
+
 ## Usage
 
 After installation, configure Claude Code or Claude Desktop to connect via SSH. See the main repository README for detailed setup instructions.
