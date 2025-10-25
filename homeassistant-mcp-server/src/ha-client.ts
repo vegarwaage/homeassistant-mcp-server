@@ -381,4 +381,79 @@ export class HomeAssistantClient {
 
     return response.data;
   }
+
+  /**
+   * Get logbook entries with optional filters
+   */
+  async getLogbook(params: {
+    start_time?: string;
+    end_time?: string;
+    entity_id?: string;
+    limit?: number;
+  }): Promise<any[]> {
+    const { start_time, end_time, entity_id, limit } = params;
+
+    const endpoint = start_time
+      ? `/logbook/${start_time}`
+      : '/logbook';
+
+    const queryParams: any = {};
+    if (end_time) queryParams.end_time = end_time;
+    if (entity_id) queryParams.entity = entity_id;
+
+    const response = await this.apiClient.get(endpoint, {
+      params: queryParams
+    });
+
+    const entries = response.data;
+    return limit ? entries.slice(0, limit) : entries;
+  }
+
+  /**
+   * List available blueprints by domain
+   */
+  async listBlueprints(domain: 'automation' | 'script'): Promise<any> {
+    const response = await this.apiClient.get(`/blueprint/${domain}`);
+    return response.data;
+  }
+
+  /**
+   * Import blueprint from URL
+   */
+  async importBlueprint(url: string): Promise<any> {
+    const response = await this.apiClient.post('/blueprint/import', {
+      url
+    });
+    return response.data;
+  }
+
+  /**
+   * Send notification to mobile app or service
+   */
+  async sendNotification(params: {
+    service: string;
+    title?: string;
+    message: string;
+    data?: Record<string, any>;
+  }): Promise<void> {
+    const { service, title, message, data } = params;
+
+    const serviceData: any = {
+      message
+    };
+
+    if (title) {
+      serviceData.title = title;
+    }
+
+    if (data) {
+      serviceData.data = data;
+    }
+
+    await this.callService({
+      domain: 'notify',
+      service,
+      service_data: serviceData
+    });
+  }
 }
