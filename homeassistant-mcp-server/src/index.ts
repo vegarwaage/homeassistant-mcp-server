@@ -22,6 +22,7 @@ import { registerMediaTools } from './tools/media.js';
 import { registerEnergyTools } from './tools/energy.js';
 import { registerPersonTools } from './tools/persons.js';
 import { registerEventsTools } from './tools/events.js';
+import { registerCalendarsTools } from './tools/calendars.js';
 import { createStdioTransport, createHttpTransport } from './transports/index.js';
 
 // Extract and validate environment variables
@@ -135,7 +136,8 @@ class HAMCPServer {
       ...registerMediaTools(),
       ...registerEnergyTools(),
       ...registerPersonTools(),
-      ...registerEventsTools()
+      ...registerEventsTools(),
+      ...registerCalendarsTools()
     ];
 
     // Add to map for quick lookup

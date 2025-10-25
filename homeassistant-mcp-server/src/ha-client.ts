@@ -353,4 +353,32 @@ export class HomeAssistantClient {
     const response = await this.apiClient.get('/events');
     return response.data;
   }
+
+  /**
+   * Get all calendar entities
+   */
+  async listCalendars(): Promise<HAState[]> {
+    const allStates = await this.getStates();
+    return allStates.filter(state => state.entity_id.startsWith('calendar.'));
+  }
+
+  /**
+   * Get calendar events for a specific calendar entity within a date range
+   */
+  async getCalendarEvents(params: {
+    entityId: string;
+    start: string;
+    end: string;
+  }): Promise<any[]> {
+    const { entityId, start, end } = params;
+
+    const response = await this.apiClient.get(`/calendars/${entityId}`, {
+      params: {
+        start,
+        end
+      }
+    });
+
+    return response.data;
+  }
 }
