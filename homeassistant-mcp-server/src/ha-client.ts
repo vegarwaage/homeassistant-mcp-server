@@ -210,4 +210,67 @@ export class HomeAssistantClient {
     const response = await this.apiClient.post('/conversation/process', params);
     return response.data;
   }
+
+  /**
+   * Get supervisor information (supervisor, core, os, or host)
+   */
+  async getSupervisorInfo(component?: 'supervisor' | 'core' | 'os' | 'host'): Promise<any> {
+    if (component) {
+      try {
+        const response = await this.supervisorClient.get(`/supervisor/${component}/info`);
+        return response.data;
+      } catch (error: any) {
+        if (error.response?.status === 404 || error.code === 'ECONNREFUSED') {
+          throw new Error(`Supervisor ${component} API not available. This may not be a Supervisor installation.`);
+        }
+        throw error;
+      }
+    }
+
+    // Get all components
+    const results: any = {};
+    const components = ['supervisor', 'core', 'os', 'host'];
+
+    for (const comp of components) {
+      try {
+        const response = await this.supervisorClient.get(`/supervisor/${comp}/info`);
+        results[comp] = response.data;
+      } catch (error: any) {
+        results[comp] = { error: `Not available: ${error.message}` };
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Get list of loaded integrations/components
+   */
+  async getIntegrations(): Promise<string[]> {
+    const response = await this.apiClient.get<string[]>('/config/components');
+    return response.data;
+  }
+
+  /**
+   * Get system diagnostics and health information
+   */
+  async getDiagnostics(): Promise<any> {
+    try {
+      // Try supervisor resolution info first
+      const response = await this.supervisorClient.get('/supervisor/resolution/info');
+      return response.data;
+    } catch (error: any) {
+      // Fallback to core info if supervisor not available
+      try {
+        const response = await this.apiClient.get('/config/core');
+        return {
+          fallback: true,
+          core_info: response.data,
+          message: 'Supervisor diagnostics not available, showing core info'
+        };
+      } catch (fallbackError: any) {
+        throw new Error(`Diagnostics not available: ${fallbackError.message}`);
+      }
+    }
+  }
 }
