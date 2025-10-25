@@ -42,11 +42,10 @@ if (TRANSPORT !== 'stdio' && TRANSPORT !== 'http') {
   process.exit(1);
 }
 
-// Block HTTP transport with clear error
+// HTTP transport now available with OAuth 2.1 support
 if (TRANSPORT === 'http') {
-  console.error('HTTP transport is disabled by default. OAuth support pending.');
-  console.error('Use TRANSPORT=stdio (default) for Claude Desktop/Code.');
-  process.exit(1);
+  console.log('HTTP transport enabled with OAuth 2.1');
+  console.log('Requires: OAUTH_CLIENT_URL, PORT (optional)');
 }
 
 class HAMCPServer {
