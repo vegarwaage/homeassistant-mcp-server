@@ -197,4 +197,17 @@ export class HomeAssistantClient {
     const response = await this.apiClient.post('/template', { template });
     return response.data;
   }
+
+  /**
+   * Process natural language with Home Assistant's conversation/intent API
+   */
+  async processConversation(params: {
+    text: string;
+    conversation_id?: string;
+    agent_id?: string;
+    language?: string;
+  }): Promise<any> {
+    const response = await this.apiClient.post('/conversation/process', params);
+    return response.data;
+  }
 }
