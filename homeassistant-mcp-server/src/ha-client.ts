@@ -107,7 +107,8 @@ export class HomeAssistantClient {
       }
       return stdout;
     } catch (error: any) {
-      throw new Error(`CLI command failed: ${error.message}`);
+      const errorMsg = error.stderr ? `${error.message}\nDetails: ${error.stderr}` : error.message;
+      throw new Error(`CLI command failed: ${errorMsg}`);
     }
   }
 

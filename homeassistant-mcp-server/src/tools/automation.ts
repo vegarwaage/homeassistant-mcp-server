@@ -75,7 +75,8 @@ export function registerAutomationTools(): ToolDefinition[] {
           }
         } catch (error: any) {
           if (error.message.includes('insufficient permissions') || error.message.includes('invalid token')) {
-            console.error('Skipping validation - CLI access not available');
+            console.error('WARNING: Validation skipped - CLI access not available');
+            console.error('WARNING: Configuration may be invalid!');
           } else {
             throw error;
           }
@@ -137,7 +138,8 @@ export function registerAutomationTools(): ToolDefinition[] {
           }
         } catch (error: any) {
           if (error.message.includes('insufficient permissions') || error.message.includes('invalid token')) {
-            console.error('Skipping validation - CLI access not available');
+            console.error('WARNING: Validation skipped - CLI access not available');
+            console.error('WARNING: Configuration may be invalid!');
           } else {
             throw error;
           }
