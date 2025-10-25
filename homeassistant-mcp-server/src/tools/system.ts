@@ -1,8 +1,195 @@
-// ABOUTME: MCP tools for Home Assistant system information, logs, and diagnostics
-// ABOUTME: Provides ha_system_info, ha_get_logs, ha_restart
+// ABOUTME: System-level tools for commands, logs, and diagnostics
+// ABOUTME: Provides shell command execution and system monitoring
 
+import { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import * as fs from 'fs/promises';
+import { hasPermission, getPermissionRequest } from '../permissions.js';
 import { HomeAssistantClient } from '../ha-client.js';
 import { ToolDefinition } from '../types.js';
+
+const execAsync = promisify(exec);
+
+async function checkPermission(sessionId: string): Promise<string | null> {
+  if (!hasPermission(sessionId, 'commands')) {
+    return getPermissionRequest('commands');
+  }
+  return null;
+}
+
+export const systemTools: Tool[] = [
+  {
+    name: 'ha_execute_command',
+    description: 'Execute shell command with timeout. Full root access after permission granted.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'Shell command to execute' },
+        timeout: { type: 'number', description: 'Timeout in seconds (default: 30)', default: 30 }
+      },
+      required: ['command']
+    }
+  },
+  {
+    name: 'ha_read_logs',
+    description: 'Read Home Assistant logs with optional filtering. Supports line limits to prevent token overload.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        lines: { type: 'number', description: 'Number of lines to return (default: 100)', default: 100 },
+        filter: { type: 'string', description: 'Grep pattern to filter logs (optional)' }
+      },
+      required: []
+    }
+  },
+  {
+    name: 'ha_get_disk_usage',
+    description: 'Show disk space usage for key directories.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: []
+    }
+  },
+  {
+    name: 'ha_restart_homeassistant',
+    description: 'Restart Home Assistant. Requires confirmation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        confirm: { type: 'boolean', description: 'Must be true to execute', default: false }
+      },
+      required: ['confirm']
+    }
+  }
+];
+
+export async function handleSystemTool(
+  name: string,
+  args: any,
+  sessionId: string
+): Promise<any> {
+  // Check permission
+  const permRequest = await checkPermission(sessionId);
+  if (permRequest) {
+    return { error: 'permission_required', message: permRequest, category: 'commands' };
+  }
+
+  switch (name) {
+    case 'ha_execute_command': {
+      const { command, timeout = 30 } = args;
+
+      try {
+        const { stdout, stderr } = await execAsync(command, {
+          timeout: timeout * 1000,
+          maxBuffer: 10 * 1024 * 1024 // 10MB
+        });
+
+        return {
+          command,
+          stdout: stdout.trim(),
+          stderr: stderr.trim(),
+          success: true
+        };
+      } catch (error: any) {
+        return {
+          command,
+          stdout: error.stdout?.trim() || '',
+          stderr: error.stderr?.trim() || '',
+          error: error.message,
+          success: false
+        };
+      }
+    }
+
+    case 'ha_read_logs': {
+      const { lines = 100, filter } = args;
+
+      let command = `tail -n ${lines} /config/home-assistant.log`;
+      if (filter) {
+        command += ` | grep "${filter}"`;
+      }
+
+      try {
+        const { stdout } = await execAsync(command, {
+          maxBuffer: 10 * 1024 * 1024
+        });
+
+        const logLines = stdout.trim().split('\n');
+        return {
+          lines: logLines,
+          count: logLines.length,
+          filtered: !!filter,
+          filter
+        };
+      } catch (error: any) {
+        return {
+          error: error.message,
+          lines: []
+        };
+      }
+    }
+
+    case 'ha_get_disk_usage': {
+      const paths = ['/config', '/ssl', '/backup', '/share', '/media', '/addons'];
+
+      const usage = await Promise.all(
+        paths.map(async (path) => {
+          try {
+            const { stdout } = await execAsync(`du -sh ${path}`);
+            const size = stdout.split('\t')[0];
+            return { path, size };
+          } catch {
+            return { path, size: 'N/A', error: 'Not accessible' };
+          }
+        })
+      );
+
+      const { stdout: totalDf } = await execAsync('df -h /');
+      const dfLines = totalDf.trim().split('\n');
+      const rootDisk = dfLines[1].split(/\s+/);
+
+      return {
+        directories: usage,
+        root_filesystem: {
+          size: rootDisk[1],
+          used: rootDisk[2],
+          available: rootDisk[3],
+          use_percent: rootDisk[4]
+        }
+      };
+    }
+
+    case 'ha_restart_homeassistant': {
+      const { confirm } = args;
+
+      if (!confirm) {
+        return {
+          error: 'confirmation_required',
+          message: 'Set confirm: true to restart Home Assistant. This will disconnect all clients.'
+        };
+      }
+
+      try {
+        // Use ha-cli to restart
+        await execAsync('ha core restart');
+        return {
+          restarting: true,
+          message: 'Home Assistant is restarting. Connection will be lost temporarily.'
+        };
+      } catch (error: any) {
+        return {
+          error: error.message,
+          restarting: false
+        };
+      }
+    }
+
+    default:
+      return { error: 'unknown_tool', tool: name };
+  }
+}
 
 export function registerSystemTools(): ToolDefinition[] {
   return [
