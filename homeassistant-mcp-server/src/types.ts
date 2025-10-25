@@ -108,3 +108,17 @@ export interface BackupMetadata {
   timestamp: string;
   original_path: string;
 }
+
+/**
+ * MCP tool definition with schema and handler
+ */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: string;
+    properties?: Record<string, any>;
+    required?: string[];
+  };
+  handler: (client: any, args: any) => Promise<any>;
+}
