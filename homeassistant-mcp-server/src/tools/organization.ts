@@ -4,6 +4,31 @@
 import { HomeAssistantClient } from '../ha-client.js';
 import { ToolDefinition } from '../types.js';
 
+/**
+ * Sanitize a string ID to prevent template injection.
+ * Only allows alphanumeric characters, underscores, and hyphens.
+ */
+function sanitizeId(id: string): string {
+  if (typeof id !== 'string') {
+    throw new Error('ID must be a string');
+  }
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+    throw new Error(`Invalid ID format: ${id}. Only alphanumeric, underscore, and hyphen allowed.`);
+  }
+  return id;
+}
+
+/**
+ * Sanitize a search string to prevent template injection.
+ * Escapes single quotes and backslashes.
+ */
+function sanitizeSearchString(search: string): string {
+  if (typeof search !== 'string') {
+    throw new Error('Search must be a string');
+  }
+  return search.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 export function registerOrganizationTools(): ToolDefinition[] {
   return [
     {
@@ -15,29 +40,27 @@ export function registerOrganizationTools(): ToolDefinition[] {
       },
       handler: async (client: HomeAssistantClient, args: any) => {
         try {
-          // Get list of all area IDs
-          const areaIds = await client.renderTemplate('{{ areas() | list }}');
+          // Get all areas in a single template call using Jinja2 loop
+          const template = `
+{%- set result = [] -%}
+{%- for area_id in areas() -%}
+  {%- set _ = result.append({
+    'area_id': area_id,
+    'name': area_name(area_id),
+    'entity_count': area_entities(area_id) | count
+  }) -%}
+{%- endfor -%}
+{{ result | tojson }}
+`;
 
-          if (!Array.isArray(areaIds) || areaIds.length === 0) {
+          const areas = await client.renderTemplate(template);
+
+          if (!Array.isArray(areas)) {
             return {
               count: 0,
               areas: []
             };
           }
-
-          // For each area, get name and entity count
-          const areas = await Promise.all(
-            areaIds.map(async (areaId: string) => {
-              const name = await client.renderTemplate(`{{ area_name('${areaId}') }}`);
-              const entities = await client.renderTemplate(`{{ area_entities('${areaId}') | list }}`);
-
-              return {
-                area_id: areaId,
-                name: name,
-                entity_count: Array.isArray(entities) ? entities.length : 0
-              };
-            })
-          );
 
           return {
             count: areas.length,
@@ -57,29 +80,27 @@ export function registerOrganizationTools(): ToolDefinition[] {
       },
       handler: async (client: HomeAssistantClient, args: any) => {
         try {
-          // Get list of all label IDs
-          const labelIds = await client.renderTemplate('{{ labels() | list }}');
+          // Get all labels in a single template call using Jinja2 loop
+          const template = `
+{%- set result = [] -%}
+{%- for label_id in labels() -%}
+  {%- set _ = result.append({
+    'label_id': label_id,
+    'name': label_name(label_id),
+    'entity_count': label_entities(label_id) | count
+  }) -%}
+{%- endfor -%}
+{{ result | tojson }}
+`;
 
-          if (!Array.isArray(labelIds) || labelIds.length === 0) {
+          const labels = await client.renderTemplate(template);
+
+          if (!Array.isArray(labels)) {
             return {
               count: 0,
               labels: []
             };
           }
-
-          // For each label, get name and entity count
-          const labels = await Promise.all(
-            labelIds.map(async (labelId: string) => {
-              const name = await client.renderTemplate(`{{ label_name('${labelId}') }}`);
-              const entities = await client.renderTemplate(`{{ label_entities('${labelId}') | list }}`);
-
-              return {
-                label_id: labelId,
-                name: name,
-                entity_count: Array.isArray(entities) ? entities.length : 0
-              };
-            })
-          );
 
           return {
             count: labels.length,
@@ -92,52 +113,74 @@ export function registerOrganizationTools(): ToolDefinition[] {
     },
     {
       name: 'ha_list_devices',
-      description: 'List devices in Home Assistant. Filter by area or search by name/manufacturer.',
+      description: 'List devices in Home Assistant. Filter by area or search by name.',
       inputSchema: {
         type: 'object',
         properties: {
           area_id: { type: 'string', description: 'Filter devices by area ID' },
-          search: { type: 'string', description: 'Search in device name or manufacturer' }
+          search: { type: 'string', description: 'Search in device name' }
         }
       },
       handler: async (client: HomeAssistantClient, args: any) => {
         const { area_id, search } = args;
 
         try {
-          // Get all entities to extract unique device IDs
-          const states = await client.getStates();
+          // Validate inputs if provided
+          const sanitizedAreaId = area_id ? sanitizeId(area_id) : null;
+          const sanitizedSearch = search ? sanitizeSearchString(search) : null;
 
-          // Extract unique device IDs from entity attributes
-          const deviceMap = new Map<string, any>();
+          // Build template to get devices using Home Assistant template functions
+          let template: string;
 
-          for (const state of states) {
-            const deviceId = state.attributes.device_id;
-            if (deviceId && !deviceMap.has(deviceId)) {
-              // Store device info
-              deviceMap.set(deviceId, {
-                device_id: deviceId,
-                name: state.attributes.friendly_name || state.entity_id,
-                area_id: state.attributes.area_id,
-                entity_ids: [state.entity_id]
-              });
-            } else if (deviceId) {
-              // Add entity to existing device
-              deviceMap.get(deviceId)!.entity_ids.push(state.entity_id);
-            }
+          if (sanitizedAreaId) {
+            // Get devices for a specific area
+            template = `
+{%- set result = [] -%}
+{%- for device_id in area_devices('${sanitizedAreaId}') -%}
+  {%- set device_name = device_attr(device_id, 'name') -%}
+  {%- set device_entities = device_entities(device_id) | list -%}
+  {%- set _ = result.append({
+    'device_id': device_id,
+    'name': device_name,
+    'area_id': '${sanitizedAreaId}',
+    'entity_ids': device_entities,
+    'entity_count': device_entities | count
+  }) -%}
+{%- endfor -%}
+{{ result | tojson }}
+`;
+          } else {
+            // Get all devices from all areas
+            template = `
+{%- set result = [] -%}
+{%- for area_id in areas() -%}
+  {%- for device_id in area_devices(area_id) -%}
+    {%- set device_name = device_attr(device_id, 'name') -%}
+    {%- set device_entities = device_entities(device_id) | list -%}
+    {%- set _ = result.append({
+      'device_id': device_id,
+      'name': device_name,
+      'area_id': area_id,
+      'entity_ids': device_entities,
+      'entity_count': device_entities | count
+    }) -%}
+  {%- endfor -%}
+{%- endfor -%}
+{{ result | tojson }}
+`;
           }
 
-          let devices = Array.from(deviceMap.values());
+          let devices = await client.renderTemplate(template);
 
-          // Filter by area if specified
-          if (area_id) {
-            devices = devices.filter(device => device.area_id === area_id);
+          if (!Array.isArray(devices)) {
+            devices = [];
           }
 
-          // Filter by search term if specified
-          if (search) {
-            const searchLower = search.toLowerCase();
-            devices = devices.filter(device =>
-              device.name.toLowerCase().includes(searchLower)
+          // Apply search filter if specified
+          if (sanitizedSearch) {
+            const searchLower = sanitizedSearch.toLowerCase();
+            devices = devices.filter((device: any) =>
+              device.name && device.name.toLowerCase().includes(searchLower)
             );
           }
 
