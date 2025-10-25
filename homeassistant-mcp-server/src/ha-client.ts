@@ -189,4 +189,12 @@ export class HomeAssistantClient {
       };
     });
   }
+
+  /**
+   * Render a Jinja2 template using Home Assistant's template API
+   */
+  async renderTemplate(template: string): Promise<any> {
+    const response = await this.apiClient.post('/template', { template });
+    return response.data;
+  }
 }
