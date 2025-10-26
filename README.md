@@ -2,236 +2,270 @@
 
 MCP (Model Context Protocol) server for integrating Home Assistant with Claude Code and Claude Desktop.
 
-**Status**: ✅ Fully working with stdio transport (SSH-based) and auto-deployment
-**Version**: 1.1.0
-**Last Updated**: October 26, 2025
+## About
 
-## Features
+**Version 2.0.0** introduces a comprehensive layered architecture with **132 total tools** - 73 new API-level tools organized in domain/system/advanced layers, plus 44 legacy API tools and 15 root-level tools.
 
-### Entity & State Management
-- Query current entity states
-- Access historical data with time ranges
-- Call any Home Assistant service
-- Get detailed entity information
+### V2.0.0 Layered Architecture (73 new tools)
 
-### Configuration Management
-- Read any configuration file
-- Write and update YAML configs
-- Automatic backup before modifications
-- Configuration validation
-- Selective reload (automations, scripts, core)
+#### Domain Layer: Entity Management (34 tools)
+- **Scenes** (4 tools): List, activate, create, delete scenes
+- **Scripts** (6 tools): List, execute, reload, create, update, delete scripts
+- **Input Helpers** (8 tools): Create and manage boolean, number, text, select, datetime helpers
+- **Areas & Zones** (9 tools): Create, update, delete areas and zones; assign devices
+- **Device Registry** (7 tools): List, get, update, enable/disable devices; manage entity registry
 
-### Automation Tools
-- Create new automations
-- Update existing automations
-- Delete automations
-- List all automations
+#### System Layer: Lifecycle Management (26 tools)
+- **Add-on Management** (9 tools): List, start, stop, restart, install, uninstall, update, configure add-ons
+- **Integration Management** (7 tools): List, discover, setup, configure, reload, remove integrations
+- **HACS** (5 tools): Browse, install, update, remove Home Assistant Community Store repositories
+- **Backup & Restore** (5 tools): List, create, restore, get info, delete backups
 
-### System & Diagnostics
-- System information and health
-- Log fetching and filtering
-- Restart capabilities
+#### Advanced Layer: Power User Features (13 tools)
+- **Bulk Operations** (3 tools): Bulk service calls, turn on/off multiple entities via WebSocket
+- **Configuration Search** (4 tools): Search entities, services, automations, configuration
+- **Automation Debugging** (3 tools): Get execution traces, list traces, get diagnostics
+- **Automation Helpers** (3 tools): Validate config, test conditions, generate templates
 
-## Installation
+### Legacy API Tools (44 tools)
+- **Entity Management**: Query states, history, and control devices
+- **Configuration**: Read, write, and validate Home Assistant configuration files
+- **Automations**: Create, update, delete, and list automations (file-based)
+- **Search & Discovery**: Find entities by name, domain, area, state
+- **Organization**: Manage areas, labels, and devices
+- **Activity Monitoring**: Track recent entity state changes
+- **Natural Language**: Process commands and render Jinja2 templates
+- **System Information**: Get diagnostics, logs, and system health
+- **Lists & Helpers**: Manage shopping lists, todo lists
+- **Media & Cameras**: Control media players and get camera snapshots
+- **Energy & Statistics**: Query energy data and long-term statistics
+- **Person Tracking**: Get person locations and device trackers
+- **Events**: Fire custom events and list event listeners
+- **Calendars**: List calendars and retrieve calendar events
+- **Logbook**: Get human-readable event history
+- **Blueprints**: List and import automation blueprints
+- **Notifications**: Send notifications to mobile apps and services
 
-### Via GitHub Repository (Recommended)
+### Root-Level Tools (15 tools)
+- **Filesystem Access** (6 tools): Read, write, list, delete, move files with safety constraints
+- **Database Access** (5 tools): Execute SQL queries on Home Assistant recorder database
+- **System Commands** (4 tools): Execute shell commands, read logs, check disk usage, restart HA
 
-1. In Home Assistant: **Settings** → **Add-ons** → **Add-on Store** → **⋮ menu** → **Repositories**
-2. Add repository URL: `https://github.com/vegarwaage/homeassistant-mcp-server`
-3. Find "MCP Server for Home Assistant" in the add-on store
-4. Click **Install** (version 1.1.0+)
-5. Start the add-on (it will auto-deploy to `/config/mcp-server`)
-6. Check logs to confirm deployment
+### Permission System
 
-**Auto-deployment**: The add-on automatically deploys itself to `/config/mcp-server` on startup, enabling seamless updates from GitHub.
+Root-level tools use a category-based permission system that prompts for one-time approval per session:
+- **Filesystem**: Grants access to /config, /ssl, /backup, /share, /media, /addons (blocks /etc, /usr, /bin, /sbin, /sys, /proc)
+- **Database**: Grants access to execute SQL queries on the HA recorder database
+- **Commands**: Grants access to execute shell commands on the host system
 
-### Manual Installation
+## Installation Options
 
-1. SSH into your Home Assistant
-2. Clone this repository to `/addons/homeassistant-mcp-server`
-3. Refresh addon store
-4. Install from Local Add-ons
+### Option 1: Home Assistant Add-on (Recommended)
+
+See [ADDON_INSTALL.md](ADDON_INSTALL.md) for complete installation instructions for the Home Assistant add-on.
+
+### Option 2: Manual Deployment
+
+Deploy directly on your Home Assistant OS installation via SSH.
+
+**Note:** The add-on (Option 1) is recommended as it auto-deploys on updates from GitHub.
+
+```bash
+# Build on your Mac
+npm run build
+
+# Deploy to Home Assistant (use /config for persistence)
+scp -r dist/* root@homeassistant.local:/config/mcp-server/dist/
+scp package*.json root@homeassistant.local:/config/mcp-server/
+
+# SSH in and install dependencies
+ssh root@homeassistant.local "cd /config/mcp-server && npm install --production"
+```
 
 ## Configuration
 
-Configure via addon configuration UI:
+### stdio Transport
+For Claude Desktop and Claude Code, the server uses stdio transport over SSH.
 
-```yaml
-log_level: info  # debug, info, warning, error
+When installed as an add-on, it auto-deploys to `/config/mcp-server`:
+
+```bash
+ssh root@homeassistant.local \
+  "cd /config/mcp-server && SUPERVISOR_TOKEN='your_token' node dist/index.js"
 ```
 
-## Architecture
+### HTTP Transport
+For web and mobile clients, the server supports HTTP transport with OAuth 2.1:
 
-The server uses a **monolithic with transport layer** design:
-- **Core**: Unified codebase with all Home Assistant tools
-- **Transport**: stdio (SSH-based) - fully working
-- **Future**: HTTP transport with OAuth (disabled, pending Claude.ai OAuth completion)
-
-## Connecting Claude Clients
-
-### Claude Code
-
-Edit `~/.claude/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "homeassistant": {
-      "type": "stdio",
-      "command": "ssh",
-      "args": [
-        "root@homeassistant.local",
-        "cd /config/mcp-server && SUPERVISOR_TOKEN='your_token_here' node dist/index.js"
-      ]
-    }
-  }
-}
+```bash
+TRANSPORT=http PORT=3000 OAUTH_CLIENT_URL=https://your-ha-url.com node dist/index.js
 ```
 
-### Claude Desktop
+### Authentication
+Requires a Home Assistant long-lived access token set as `SUPERVISOR_TOKEN` environment variable.
 
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac):
+## Available Tools
 
-```json
-{
-  "mcpServers": {
-    "homeassistant": {
-      "command": "ssh",
-      "args": [
-        "root@homeassistant.local",
-        "cd /config/mcp-server && SUPERVISOR_TOKEN='your_token_here' node dist/index.js"
-      ]
-    }
-  }
-}
-```
+### Entity Management (4 tools)
+- `ha_get_states` - Get current state of entities
+- `ha_get_history` - Query historical data with time range filters
+- `ha_call_service` - Call any Home Assistant service to control devices
+- `ha_get_entity_details` - Get full details and attributes for specific entities
 
-**Requirements:**
-- SSH key authentication must be set up (passwordless login)
-- Replace `your_token_here` with your Home Assistant long-lived access token
-- Replace `homeassistant.local` with your HA IP/hostname if needed
-- After editing, restart Claude Desktop for changes to take effect
+### Configuration Management (6 tools)
+- `ha_read_config` - Read configuration files from /config directory
+- `ha_write_config` - Write or update configuration files (automatically backs up)
+- `ha_list_files` - List files and directories in /config
+- `ha_validate_config` - Validate configuration without applying changes
+- `ha_reload_config` - Reload automations, scripts, or core configuration
+- `ha_list_backups` - List available backups for configuration files
 
-## Available Tools (36 total)
+### Automation Management (4 tools)
+- `ha_create_automation` - Create new automation in automations.yaml
+- `ha_update_automation` - Update existing automation by ID
+- `ha_delete_automation` - Delete automation by ID
+- `ha_list_automations` - List all automations with IDs and aliases
 
-### State & Entity Tools
-- `ha_get_states` - Get entity states with optional filtering
-- `ha_get_history` - Query historical data with time ranges
-- `ha_call_service` - Control any Home Assistant device
-- `ha_get_entity_details` - Get full entity details and attributes
-- `ha_search_entities` - Fuzzy search entities by name, domain, state, area, label
-- `ha_get_stats` - Get entity statistics grouped by domain/area/label
-- `ha_get_recent_activity` - Entities that changed state recently
+### Search & Discovery (2 tools)
+- `ha_search_entities` - Search entities by name, device class, domain, state, area, or label
+- `ha_get_stats` - Get entity count statistics grouped by domain, device_class, area, or label
 
-### Configuration Tools
-- `ha_read_config` - Read config files from /config
-- `ha_write_config` - Write/update config files (auto-backup)
-- `ha_list_files` - List config directory contents
-- `ha_validate_config` - Validate configuration
-- `ha_reload_config` - Reload automations/scripts/core
-- `ha_list_backups` - List file version backups
+### Activity Monitoring (1 tool)
+- `ha_get_recent_activity` - Get entities that changed state recently with time-based filtering
 
-### Automation Tools
-- `ha_create_automation` - Create new automation
-- `ha_update_automation` - Update existing automation
-- `ha_delete_automation` - Delete automation
-- `ha_list_automations` - List all automations
-
-### Organization Tools
+### Organization (3 tools)
 - `ha_list_areas` - List all areas/rooms with entity counts
 - `ha_list_labels` - List all labels/tags with entity counts
-- `ha_list_devices` - List devices, filter by area or name
+- `ha_list_devices` - List devices with area filtering and name search
 
-### AI & Conversation Tools
-- `ha_process_conversation` - Natural language processing and intent handling
-- `ha_render_template` - Render Jinja2 templates with HA template engine
+### Natural Language Processing (2 tools)
+- `ha_process_conversation` - Process natural language text to control devices
+- `ha_render_template` - Render Jinja2 templates using HA template engine
 
-### System & Monitoring Tools
-- `ha_system_info` - System information and configuration
-- `ha_get_logs` - Fetch and filter Home Assistant logs
+### System Monitoring (3 tools)
+- `ha_system_info` - Get Home Assistant system information and health status
+- `ha_get_logs` - Fetch Home Assistant logs with optional filtering
 - `ha_restart` - Restart Home Assistant (requires confirmation)
-- `ha_get_supervisor_info` - Supervisor/core/OS/host information
-- `ha_list_integrations` - List all loaded integrations
-- `ha_get_diagnostics` - System diagnostics and health info
 
-### Helper & List Tools
-- `ha_manage_shopping_list` - Manage shopping list items
-- `ha_manage_todo` - Manage todo list items
-- `ha_list_input_helpers` - List input helper entities
+### Advanced System (3 tools)
+- `ha_get_supervisor_info` - Get supervisor, core, OS, or host information
+- `ha_list_integrations` - List all loaded integrations and components
+- `ha_get_diagnostics` - Get system diagnostics, health info, and resolution suggestions
 
-### Media Tools
-- `ha_get_camera_snapshot` - Get camera snapshots (URL or base64)
-- `ha_control_media_player` - Control media players (play/pause/volume)
+### Lists & Helpers (3 tools)
+- `ha_manage_shopping_list` - Manage shopping list items (list, add, remove, complete)
+- `ha_manage_todo` - Manage todo list items (list, add, remove, complete)
+- `ha_list_input_helpers` - List all input helper entities (boolean, number, text, select, datetime)
 
-### Energy & Statistics Tools
-- `ha_get_energy_data` - Energy dashboard data
-- `ha_get_statistics` - Long-term historical statistics
+### Media & Cameras (2 tools)
+- `ha_get_camera_snapshot` - Get camera snapshot URL or base64-encoded image data
+- `ha_control_media_player` - Control media players (play, pause, stop, volume, etc.)
 
-### Person Tracking Tools
-- `ha_get_person_location` - Person location and device tracker info
+### Energy & Statistics (2 tools)
+- `ha_get_energy_data` - Get energy dashboard data (solar, battery, grid)
+- `ha_get_statistics` - Get long-term historical statistics (efficient for > 10 days)
 
-## Safety Features
+### Person Tracking (1 tool)
+- `ha_get_person_location` - Get location info for persons including zone, GPS, and device trackers
 
-- **Automatic Backups**: All config modifications backed up automatically
-- **Validation**: Config validated before applying changes
-- **Rollback**: Last 5 versions kept for each file
-- **Confirmation**: Destructive actions require explicit confirmation
+### Events (2 tools)
+- `ha_fire_event` - Fire a custom event with optional data payload
+- `ha_list_event_listeners` - Get all active event listeners and their counts
 
-## Project Structure
+### Calendars (2 tools)
+- `ha_list_calendars` - Get all calendar entities
+- `ha_get_calendar_events` - Get calendar events for a date range with pagination
 
-```
-homeassistant-mcp-server/
-├── src/
-│   ├── index.ts              # Server entry point
-│   ├── ha-client.ts          # Home Assistant client
-│   ├── types.ts              # TypeScript interfaces
-│   ├── backup.ts             # Backup system
-│   └── tools/                # Tool implementations
-│       ├── states.ts         # Entity & state tools
-│       ├── config.ts         # Configuration tools
-│       ├── automation.ts     # Automation tools
-│       └── system.ts         # System & diagnostic tools
-├── docs/
-│   ├── plans/                # Current implementation plans
-│   └── archive/              # Historical design documents
-└── package.json
-```
+### Logbook (1 tool)
+- `ha_get_logbook` - Get human-readable logbook entries with entity filtering and pagination
 
-## Recent Changes
+### Blueprints (2 tools)
+- `ha_list_blueprints` - List available blueprints by domain (automation, script)
+- `ha_import_blueprint` - Import blueprint from URL (GitHub gist, etc.)
 
-### October 25, 2025 - Refactoring Release
-- ✅ Extracted tool definitions to eliminate duplication (DRY)
-- ✅ Made environment variables explicit with validation
-- ✅ Improved error handling with clear warnings
-- ✅ Reduced index.ts from 289 to 124 lines
-- ✅ All 17 tools now have co-located schemas and handlers
+### Notifications (1 tool)
+- `ha_send_notification` - Send notification to mobile app or notification service
+
+### Filesystem Access (6 tools - requires permission)
+- `ha_read_file` - Read file contents (text or base64-encoded binary) with size limits
+- `ha_write_file` - Write or create file with safety checks (blocks system paths)
+- `ha_list_directory` - List files and directories with metadata (size, modified, permissions)
+- `ha_delete_file` - Delete file or directory (with optional recursive deletion)
+- `ha_move_file` - Move or rename file/directory
+- `ha_file_info` - Get detailed file metadata (permissions, owner, timestamps)
+
+**Safety**: Blocks writes to /etc, /usr, /bin, /sbin, /sys, /proc. Allows /config, /ssl, /backup, /share, /media, /addons.
+
+### Database Access (5 tools - requires permission)
+- `ha_execute_sql` - Execute raw SQL queries (SELECT, INSERT, UPDATE, DELETE)
+- `ha_get_state_history` - Query state history from database with filters
+- `ha_get_statistics` - Query statistics tables for sensor data
+- `ha_purge_database` - Remove old records with configurable retention (DESTRUCTIVE)
+- `ha_database_info` - Get database size, table counts, and row counts
+
+**Safety**: Read-only access to /config/home-assistant_v2.db. All operations logged.
+
+### System Commands (4 tools - requires permission)
+- `ha_execute_command` - Execute shell commands with timeout and output limits
+- `ha_read_logs` - Read HA logs with line limits and grep filtering
+- `ha_get_disk_usage` - Show disk space usage for key directories
+- `ha_restart_homeassistant` - Restart Home Assistant (requires confirmation)
+
+**Safety**: Full root access after permission granted. All commands logged.
 
 ## Development
 
 ```bash
-cd homeassistant-mcp-server
+# Install dependencies
 npm install
+
+# Build TypeScript
 npm run build
-npm start
+
+# Run locally (requires HA_BASE_URL and SUPERVISOR_TOKEN)
+node dist/index.js
 ```
 
-## Troubleshooting
+## Project Structure
 
-### Check addon logs
-Home Assistant → Settings → Add-ons → Home Assistant MCP Server → Logs
-
-### Test SSH connection
-```bash
-ssh root@homeassistant.local "docker exec -i addon_local_homeassistant_mcp node /app/dist/index.js"
+```
+src/
+├── index.ts              # Main entry point, tool registration
+├── ha-client.ts          # Home Assistant API client
+├── permissions.ts        # Session-based permission manager
+├── types.ts              # TypeScript interfaces
+├── transports/           # Transport adapters (stdio, HTTP)
+└── tools/                # Tool implementations
+    ├── states.ts         # Entity state tools
+    ├── config.ts         # Configuration tools
+    ├── automation.ts     # Automation management
+    ├── system.ts         # System operations (API + root)
+    ├── search.ts         # Entity search
+    ├── activity.ts       # Recent activity
+    ├── organization.ts   # Areas, labels, devices
+    ├── conversation.ts   # NLP and templates
+    ├── monitoring.ts     # System monitoring
+    ├── helpers.ts        # Lists and input helpers
+    ├── media.ts          # Media and cameras
+    ├── energy.ts         # Energy data
+    ├── persons.ts        # Person tracking
+    ├── events.ts         # Event firing and listeners
+    ├── calendars.ts      # Calendar entities and events
+    ├── logbook.ts        # Logbook history
+    ├── blueprints.ts     # Blueprint management
+    ├── notifications.ts  # Notification services
+    ├── filesystem.ts     # Filesystem access (root)
+    └── database.ts       # Database access (root)
 ```
 
-### Verify addon is running
-Home Assistant → Settings → Add-ons → Check status
+## Security Notes
 
-## License
+- Root-level tools require explicit permission approval per session
+- Filesystem writes are blocked to critical system paths
+- Database operations are limited to HA recorder database
+- All privileged operations are logged
+- OAuth 2.1 support for secure HTTP transport
 
-MIT
+## Usage
 
-## Author
-
-Vegar Selvik Wavik
+See the main repository README for Claude Desktop/Code configuration instructions, or see [ADDON_INSTALL.md](ADDON_INSTALL.md) for add-on installation.
