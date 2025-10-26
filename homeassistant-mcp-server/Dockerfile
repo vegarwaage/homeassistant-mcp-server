@@ -1,8 +1,12 @@
-ARG BUILD_FROM
-FROM $BUILD_FROM
+FROM node:20-alpine
 
-# Install Node.js
-RUN apk add --no-cache nodejs npm
+# Install dependencies
+RUN apk add --no-cache \
+    bash \
+    python3 \
+    make \
+    g++ \
+    sqlite
 
 # Set working directory
 WORKDIR /app
@@ -10,21 +14,16 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies for build)
-RUN npm ci
+# Install Node dependencies
+RUN npm ci --only=production
 
-# Copy source files and build configuration
-COPY tsconfig.json ./
-COPY src ./src
+# Copy source
+COPY . .
 
 # Build TypeScript
 RUN npm run build
 
-# Remove dev dependencies to reduce image size
-RUN npm prune --production
+# Make run script executable
+RUN chmod +x /app/run.sh
 
-# Copy run script
-COPY run.sh /
-RUN chmod a+x /run.sh
-
-CMD [ "/run.sh" ]
+CMD ["/app/run.sh"]

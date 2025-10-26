@@ -1,15 +1,21 @@
-#!/usr/bin/with-contenv bashio
+#!/usr/bin/env bash
+set -e
 
-# Get config from addon options
-LOG_LEVEL=$(bashio::config 'log_level')
+CONFIG_PATH=/data/options.json
 
-# Export supervisor token for API access
+TRANSPORT=$(jq -r '.transport' $CONFIG_PATH)
+PORT=$(jq -r '.port' $CONFIG_PATH)
+OAUTH_CLIENT_URL=$(jq -r '.oauth_client_url' $CONFIG_PATH)
+
+export TRANSPORT=$TRANSPORT
+export PORT=$PORT
+export OAUTH_CLIENT_URL=$OAUTH_CLIENT_URL
+export HA_URL="http://supervisor/core"
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 
-# Log startup
-bashio::log.info "Starting Home Assistant MCP Server..."
-bashio::log.info "Log level: ${LOG_LEVEL}"
+echo "Starting MCP Server..."
+echo "Transport: $TRANSPORT"
+echo "Port: $PORT"
 
-# Start MCP server
 cd /app
-exec node dist/index.js
+node dist/index.js
