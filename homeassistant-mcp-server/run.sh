@@ -34,6 +34,9 @@ else
     git reset --hard origin/main
 fi
 
+# Navigate to the actual code directory (repository has subdirectory structure)
+cd ${DEPLOY_PATH}/homeassistant-mcp-server
+
 # Install dependencies and build
 echo "Installing dependencies..."
 npm install --no-audit --no-fund 2>&1 | grep -v "npm warn" || true
@@ -43,12 +46,12 @@ npm run build
 
 echo "Build completed successfully!"
 
-echo "✓ MCP Server deployed to ${DEPLOY_PATH}"
+echo "✓ MCP Server deployed to ${DEPLOY_PATH}/homeassistant-mcp-server"
 echo "  Transport: $TRANSPORT"
 echo "  Version: $(node -p "require('./package.json').version")"
 echo ""
 echo "Connect Claude Desktop/Code with:"
-echo "  cd /config/mcp-server && SUPERVISOR_TOKEN='***' node dist/index.js"
+echo "  cd /config/mcp-server/homeassistant-mcp-server && SUPERVISOR_TOKEN='***' node dist/index.js"
 echo ""
 echo "Add-on will remain running to enable auto-updates on restart."
 
