@@ -1,10 +1,11 @@
 FROM node:20-alpine
 
-# Install dependencies (including jq for config parsing)
-# Cache bust: 2025-10-26-v2
+# Install dependencies (including jq for config parsing and git for GitHub auto-deployment)
+# Cache bust: 2025-10-26-v3
 RUN apk add --no-cache \
     bash \
     jq \
+    git \
     python3 \
     make \
     g++ \

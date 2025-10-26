@@ -19,15 +19,25 @@ echo "Deploying MCP Server to ${DEPLOY_PATH}..."
 # Create deployment directory
 mkdir -p ${DEPLOY_PATH}
 
-# Copy built files
-cp -r /app/dist ${DEPLOY_PATH}/
-cp /app/package.json ${DEPLOY_PATH}/
-cp /app/package-lock.json ${DEPLOY_PATH}/ 2>/dev/null || true
+# Check if git repo exists, if not initialize it
+if [ ! -d "${DEPLOY_PATH}/.git" ]; then
+    echo "Initializing GitHub deployment..."
+    cd ${DEPLOY_PATH}
+    git init
+    git remote add origin https://github.com/vegarwaage/homeassistant-mcp-server.git
+    git fetch origin main
+    git checkout -b main origin/main
+else
+    echo "Pulling latest code from GitHub..."
+    cd ${DEPLOY_PATH}
+    git fetch origin main
+    git reset --hard origin/main
+fi
 
-# Install production dependencies
-echo "Installing dependencies..."
-cd ${DEPLOY_PATH}
-npm install --production --no-audit --no-fund 2>&1 | grep -v "npm warn" || true
+# Install dependencies and build
+echo "Installing dependencies and building..."
+npm install --no-audit --no-fund 2>&1 | grep -v "npm warn" || true
+npm run build 2>&1 || true
 
 echo "✓ MCP Server deployed to ${DEPLOY_PATH}"
 echo "  Transport: $TRANSPORT"
