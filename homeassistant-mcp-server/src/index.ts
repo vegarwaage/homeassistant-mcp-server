@@ -89,7 +89,7 @@ class HAMCPServer {
     this.server = new Server(
       {
         name: 'homeassistant-mcp-server',
-        version: '1.1.0',
+        version: '2.0.0',
       },
       {
         capabilities: {
