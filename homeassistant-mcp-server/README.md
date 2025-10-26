@@ -4,20 +4,39 @@ MCP (Model Context Protocol) server for integrating Home Assistant with Claude C
 
 ## About
 
-This server provides **59 tools** (44 API-level + 15 root-level) that allow Claude AI to interact with your Home Assistant instance with comprehensive access to both the Home Assistant API and the underlying system.
+**Version 2.0.0** introduces a comprehensive layered architecture with **132 total tools** - 73 new API-level tools organized in domain/system/advanced layers, plus 44 legacy API tools and 15 root-level tools.
 
-### Tool Categories
+### V2.0.0 Layered Architecture (73 new tools)
 
-#### API Tools (44 tools)
+#### Domain Layer: Entity Management (34 tools)
+- **Scenes** (4 tools): List, activate, create, delete scenes
+- **Scripts** (6 tools): List, execute, reload, create, update, delete scripts
+- **Input Helpers** (8 tools): Create and manage boolean, number, text, select, datetime helpers
+- **Areas & Zones** (9 tools): Create, update, delete areas and zones; assign devices
+- **Device Registry** (7 tools): List, get, update, enable/disable devices; manage entity registry
+
+#### System Layer: Lifecycle Management (26 tools)
+- **Add-on Management** (9 tools): List, start, stop, restart, install, uninstall, update, configure add-ons
+- **Integration Management** (7 tools): List, discover, setup, configure, reload, remove integrations
+- **HACS** (5 tools): Browse, install, update, remove Home Assistant Community Store repositories
+- **Backup & Restore** (5 tools): List, create, restore, get info, delete backups
+
+#### Advanced Layer: Power User Features (13 tools)
+- **Bulk Operations** (3 tools): Bulk service calls, turn on/off multiple entities via WebSocket
+- **Configuration Search** (4 tools): Search entities, services, automations, configuration
+- **Automation Debugging** (3 tools): Get execution traces, list traces, get diagnostics
+- **Automation Helpers** (3 tools): Validate config, test conditions, generate templates
+
+### Legacy API Tools (44 tools)
 - **Entity Management**: Query states, history, and control devices
 - **Configuration**: Read, write, and validate Home Assistant configuration files
-- **Automations**: Create, update, delete, and list automations
-- **Search & Discovery**: Find entities by name, domain, area, state, and more
+- **Automations**: Create, update, delete, and list automations (file-based)
+- **Search & Discovery**: Find entities by name, domain, area, state
 - **Organization**: Manage areas, labels, and devices
 - **Activity Monitoring**: Track recent entity state changes
 - **Natural Language**: Process commands and render Jinja2 templates
 - **System Information**: Get diagnostics, logs, and system health
-- **Lists & Helpers**: Manage shopping lists, todo lists, and input helpers
+- **Lists & Helpers**: Manage shopping lists, todo lists
 - **Media & Cameras**: Control media players and get camera snapshots
 - **Energy & Statistics**: Query energy data and long-term statistics
 - **Person Tracking**: Get person locations and device trackers
@@ -27,7 +46,7 @@ This server provides **59 tools** (44 API-level + 15 root-level) that allow Clau
 - **Blueprints**: List and import automation blueprints
 - **Notifications**: Send notifications to mobile apps and services
 
-#### Root-Level Tools (15 tools)
+### Root-Level Tools (15 tools)
 - **Filesystem Access** (6 tools): Read, write, list, delete, move files with safety constraints
 - **Database Access** (5 tools): Execute SQL queries on Home Assistant recorder database
 - **System Commands** (4 tools): Execute shell commands, read logs, check disk usage, restart HA
