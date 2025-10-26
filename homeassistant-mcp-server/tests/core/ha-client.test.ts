@@ -1,4 +1,4 @@
-import { HomeAssistantClient } from '../../src/ha-client';
+import { HomeAssistantClient } from '../../src/core/ha-client';
 
 describe('HomeAssistantClient', () => {
   it('should create client with valid config', () => {

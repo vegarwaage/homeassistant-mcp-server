@@ -12,7 +12,7 @@ import {
   HADatabaseResult,
   HALogEntry,
   HAValidationResult
-} from './types.js';
+} from '../types.js';
 
 const execAsync = promisify(exec);
 

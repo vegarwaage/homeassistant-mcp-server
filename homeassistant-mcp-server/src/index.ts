@@ -6,7 +6,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { HomeAssistantClient } from './ha-client.js';
+import { HomeAssistantClient } from './core/index.js';
 import { ToolDefinition } from './types.js';
 import { registerStateTools } from './tools/states.js';
 import { registerConfigTools } from './tools/config.js';
