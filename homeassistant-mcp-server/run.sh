@@ -2,6 +2,7 @@
 set -e
 
 CONFIG_PATH=/data/options.json
+DEPLOY_PATH=/config/mcp-server
 
 TRANSPORT=$(jq -r '.transport' $CONFIG_PATH)
 PORT=$(jq -r '.port' $CONFIG_PATH)
@@ -13,18 +14,29 @@ export OAUTH_CLIENT_URL=$OAUTH_CLIENT_URL
 export HA_URL="http://supervisor/core"
 export SUPERVISOR_TOKEN="${SUPERVISOR_TOKEN}"
 
-# Write env vars to file for docker exec sessions
-cat > /app/.env << EOF
-TRANSPORT=$TRANSPORT
-PORT=$PORT
-OAUTH_CLIENT_URL=$OAUTH_CLIENT_URL
-HA_URL=http://supervisor/core
-SUPERVISOR_TOKEN=$SUPERVISOR_TOKEN
-EOF
+echo "Deploying MCP Server to ${DEPLOY_PATH}..."
 
-echo "MCP Server add-on ready"
-echo "Transport: $TRANSPORT"
-echo "Connect via: docker exec -i addon_c6043944_ha-mcp-server-v2 sh -c 'source /app/.env && node /app/dist/index.js'"
+# Create deployment directory
+mkdir -p ${DEPLOY_PATH}
 
-# Keep container alive for docker exec access
+# Copy built files
+cp -r /app/dist ${DEPLOY_PATH}/
+cp /app/package.json ${DEPLOY_PATH}/
+cp /app/package-lock.json ${DEPLOY_PATH}/ 2>/dev/null || true
+
+# Install production dependencies
+echo "Installing dependencies..."
+cd ${DEPLOY_PATH}
+npm install --production --no-audit --no-fund 2>&1 | grep -v "npm warn" || true
+
+echo "✓ MCP Server deployed to ${DEPLOY_PATH}"
+echo "  Transport: $TRANSPORT"
+echo "  Version: $(node -p "require('./package.json').version")"
+echo ""
+echo "Connect Claude Desktop/Code with:"
+echo "  cd /config/mcp-server && SUPERVISOR_TOKEN='***' node dist/index.js"
+echo ""
+echo "Add-on will remain running to enable auto-updates on restart."
+
+# Keep container alive so add-on stays "started"
 sleep infinity
