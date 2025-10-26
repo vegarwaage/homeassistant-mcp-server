@@ -1,6 +1,7 @@
 FROM node:20-alpine
 
-# Install dependencies
+# Install dependencies (including jq for config parsing)
+# Cache bust: 2025-10-26-v2
 RUN apk add --no-cache \
     bash \
     jq \
