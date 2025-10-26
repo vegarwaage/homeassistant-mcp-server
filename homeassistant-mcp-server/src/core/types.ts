@@ -109,3 +109,12 @@ export interface HAValidationResult {
   valid: boolean;
   errors?: string[];
 }
+
+/**
+ * Retry configuration for exponential backoff
+ */
+export interface RetryConfig {
+  maxRetries?: number;
+  baseDelay?: number;
+  maxDelay?: number;
+}

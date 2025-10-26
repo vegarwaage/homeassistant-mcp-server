@@ -11,7 +11,8 @@ import {
   HASystemInfo,
   HADatabaseResult,
   HALogEntry,
-  HAValidationResult
+  HAValidationResult,
+  RetryConfig
 } from './types.js';
 
 const execAsync = promisify(exec);
@@ -20,6 +21,7 @@ export interface HomeAssistantClientConfig {
   baseUrl?: string;
   token?: string;
   maxConcurrent?: number;
+  retry?: RetryConfig;
 }
 
 export class HomeAssistantClient {
@@ -30,6 +32,7 @@ export class HomeAssistantClient {
   private maxConcurrent: number;
   private activeRequests: number;
   private requestQueue: Array<() => void>;
+  private retryConfig: RetryConfig;
 
   constructor(baseUrlOrConfig: string | HomeAssistantClientConfig = 'http://homeassistant:8123', token?: string) {
     // Handle both old and new constructor signatures
@@ -37,10 +40,12 @@ export class HomeAssistantClient {
       this.baseUrl = baseUrlOrConfig;
       this.token = token || process.env.SUPERVISOR_TOKEN || '';
       this.maxConcurrent = Infinity;
+      this.retryConfig = {};
     } else {
       this.baseUrl = baseUrlOrConfig.baseUrl || 'http://homeassistant:8123';
       this.token = baseUrlOrConfig.token || process.env.SUPERVISOR_TOKEN || '';
       this.maxConcurrent = baseUrlOrConfig.maxConcurrent || Infinity;
+      this.retryConfig = baseUrlOrConfig.retry || {};
     }
 
     this.activeRequests = 0;
@@ -97,6 +102,61 @@ export class HomeAssistantClient {
   }
 
   /**
+   * Sleep for specified milliseconds
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Calculate backoff delay with exponential increase
+   */
+  private calculateBackoff(attempt: number): number {
+    const baseDelay = this.retryConfig.baseDelay || 1000;
+    const maxDelay = this.retryConfig.maxDelay || 30000;
+    const delay = baseDelay * Math.pow(2, attempt);
+    return Math.min(delay, maxDelay);
+  }
+
+  /**
+   * Wrap a function with retry logic
+   */
+  private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
+    const maxRetries = this.retryConfig.maxRetries || 0;
+    let lastError: Error;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+
+        // Don't retry on last attempt
+        if (attempt === maxRetries) {
+          break;
+        }
+
+        // Only retry on network errors or 5xx server errors
+        const shouldRetry =
+          error.code === 'ECONNREFUSED' ||
+          error.code === 'ETIMEDOUT' ||
+          error.code === 'ENOTFOUND' ||
+          (error.response && error.response.status >= 500);
+
+        if (!shouldRetry) {
+          throw error;
+        }
+
+        // Wait before retrying
+        const delay = this.calculateBackoff(attempt);
+        await this.sleep(delay);
+      }
+    }
+
+    throw lastError!;
+  }
+
+  /**
    * Execute an HTTP request with connection pooling
    */
   private async executeRequest<T>(
@@ -108,23 +168,25 @@ export class HomeAssistantClient {
     await this.acquireSlot();
 
     try {
-      const client = useSupervisor ? this.supervisorClient : this.apiClient;
-      let response;
-      switch (method) {
-        case 'get':
-          response = await client.get<T>(url);
-          break;
-        case 'post':
-          response = await client.post<T>(url, data);
-          break;
-        case 'delete':
-          response = await client.delete<T>(url);
-          break;
-        case 'patch':
-          response = await client.patch<T>(url, data);
-          break;
-      }
-      return response.data;
+      return await this.withRetry(async () => {
+        const client = useSupervisor ? this.supervisorClient : this.apiClient;
+        let response;
+        switch (method) {
+          case 'get':
+            response = await client.get<T>(url);
+            break;
+          case 'post':
+            response = await client.post<T>(url, data);
+            break;
+          case 'delete':
+            response = await client.delete<T>(url);
+            break;
+          case 'patch':
+            response = await client.patch<T>(url, data);
+            break;
+        }
+        return response.data;
+      });
     } finally {
       this.releaseSlot();
     }
