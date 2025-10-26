@@ -5,3 +5,4 @@ export * from './types.js';
 export * from './scenes.js';
 export * from './scripts.js';
 export * from './helpers.js';
+export * from './areas-zones.js';
