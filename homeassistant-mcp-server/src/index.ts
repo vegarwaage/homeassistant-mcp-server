@@ -8,6 +8,27 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { HomeAssistantClient } from './core/index.js';
 import { ToolDefinition } from './types.js';
+// New layered architecture imports
+import {
+  createSceneTools,
+  createScriptTools,
+  createHelperTools,
+  createAreaZoneTools,
+  createDeviceTools,
+} from './domain/index.js';
+import {
+  createAddonTools,
+  createIntegrationTools,
+  createHACSTools,
+  createBackupTools,
+} from './system/index.js';
+import {
+  createBulkOperationTools,
+  createConfigurationSearchTools,
+  createAutomationDebuggingTools,
+  createAutomationHelperTools,
+} from './advanced/index.js';
+// Legacy tools imports
 import { registerStateTools } from './tools/states.js';
 import { registerConfigTools } from './tools/config.js';
 import { registerAutomationTools } from './tools/automation.js';
@@ -197,9 +218,46 @@ class HAMCPServer {
     });
   }
 
+  private convertLayeredTools(toolsObject: any): ToolDefinition[] {
+    return Object.values(toolsObject).map((tool: any) => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      handler: async (client: HomeAssistantClient, args: any) => {
+        return await tool.handler(args);
+      },
+    }));
+  }
+
   private registerTools() {
-    // Register all API-level tool categories
-    const allTools = [
+    // V2.0.0: Register new layered architecture tools (73 new tools)
+    // Domain layer: Entity management (scenes, scripts, helpers, areas, zones, devices)
+    // System layer: Lifecycle management (add-ons, integrations, HACS, backups)
+    // Advanced layer: Power features (bulk ops, search, debugging, automation helpers)
+    const domainTools = [
+      ...this.convertLayeredTools(createSceneTools(this.haClient)),
+      ...this.convertLayeredTools(createScriptTools(this.haClient)),
+      ...this.convertLayeredTools(createHelperTools(this.haClient)),
+      ...this.convertLayeredTools(createAreaZoneTools(this.haClient)),
+      ...this.convertLayeredTools(createDeviceTools(this.haClient)),
+    ];
+
+    const systemTools = [
+      ...this.convertLayeredTools(createAddonTools(this.haClient)),
+      ...this.convertLayeredTools(createIntegrationTools(this.haClient)),
+      ...this.convertLayeredTools(createHACSTools(this.haClient)),
+      ...this.convertLayeredTools(createBackupTools(this.haClient)),
+    ];
+
+    const advancedTools = [
+      ...this.convertLayeredTools(createBulkOperationTools(this.haClient)),
+      ...this.convertLayeredTools(createConfigurationSearchTools(this.haClient)),
+      ...this.convertLayeredTools(createAutomationDebuggingTools(this.haClient)),
+      ...this.convertLayeredTools(createAutomationHelperTools(this.haClient)),
+    ];
+
+    // Register legacy API-level tool categories
+    const legacyTools = [
       ...registerStateTools(),
       ...registerConfigTools(),
       ...registerAutomationTools(),
@@ -219,6 +277,9 @@ class HAMCPServer {
       ...registerBlueprintsTools(),
       ...registerNotificationsTools()
     ];
+
+    // Combine all tools
+    const allTools = [...domainTools, ...systemTools, ...advancedTools, ...legacyTools];
 
     // Add API tools to map for quick lookup
     for (const tool of allTools) {
