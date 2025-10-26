@@ -3,7 +3,6 @@
 
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import sqlite3 from 'sqlite3';
-import { hasPermission, getPermissionRequest } from '../permissions.js';
 import { validatePositiveNumber } from '../validation.js';
 
 const DB_PATH = process.env.HA_DB_PATH || '/config/home-assistant_v2.db';
@@ -36,13 +35,6 @@ function openDatabase(): Promise<sqlite3.Database> {
       else resolve(db);
     });
   });
-}
-
-async function checkPermission(sessionId: string): Promise<string | null> {
-  if (!hasPermission(sessionId, 'database')) {
-    return getPermissionRequest('database');
-  }
-  return null;
 }
 
 export const databaseTools: Tool[] = [

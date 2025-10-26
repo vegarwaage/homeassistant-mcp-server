@@ -5,18 +5,10 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
-import { hasPermission, getPermissionRequest } from '../permissions.js';
 import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 const execAsync = promisify(exec);
-
-async function checkPermission(sessionId: string): Promise<string | null> {
-  if (!hasPermission(sessionId, 'commands')) {
-    return getPermissionRequest('commands');
-  }
-  return null;
-}
 
 export const systemTools: Tool[] = [
   {

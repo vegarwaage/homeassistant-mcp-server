@@ -4,7 +4,6 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { hasPermission, getPermissionRequest, PermissionCategory } from '../permissions.js';
 import { validatePositiveNumber } from '../validation.js';
 
 const BLOCKED_PATHS = ['/etc', '/usr', '/bin', '/sbin', '/sys', '/proc'];
@@ -21,13 +20,6 @@ function isPathSafe(filePath: string): { safe: boolean; reason?: string } {
   }
 
   return { safe: true };
-}
-
-async function checkPermission(sessionId: string): Promise<string | null> {
-  if (!hasPermission(sessionId, 'filesystem')) {
-    return getPermissionRequest('filesystem');
-  }
-  return null;
 }
 
 export const filesystemTools: Tool[] = [
