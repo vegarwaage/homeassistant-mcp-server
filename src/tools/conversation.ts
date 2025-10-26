@@ -8,13 +8,13 @@ export function registerConversationTools(): ToolDefinition[] {
   return [
     {
       name: 'ha_process_conversation',
-      description: 'Process natural language text with Home Assistant\'s conversation/intent API to control devices or get information',
+      description: 'Send user\'s natural language commands to Home Assistant\'s AI (like Alexa/Google). Use when: (1) user explicitly requests natural language control, (2) entity names are ambiguous and HA\'s AI can resolve them better. Do NOT use for programmatic control - prefer ha_call_service for precise, reliable control with known entity IDs.',
       inputSchema: {
         type: 'object',
         properties: {
           text: {
             type: 'string',
-            description: 'Natural language text to process (e.g., "turn on the living room lights")'
+            description: 'User\'s natural language command (e.g., "turn on the living room lights", "what\'s the temperature in bedroom")'
           },
           conversation_id: {
             type: 'string',
