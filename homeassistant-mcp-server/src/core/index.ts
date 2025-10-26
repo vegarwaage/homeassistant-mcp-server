@@ -5,4 +5,5 @@ export * from './ha-client.js';
 export * from './types.js';
 export * from './sse-manager.js';
 export * from './sse-types.js';
-// export * from './websocket-client';  // Will add in next task
+export * from './websocket-client.js';
+export * from './websocket-types.js';
