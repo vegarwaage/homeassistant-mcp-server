@@ -1,12 +1,14 @@
 // ABOUTME: Type definitions for Server-Sent Events (SSE) real-time subscriptions
 // ABOUTME: Defines event structures, filters, callbacks, and subscription management
 
+import type { State } from './types.js';
+
 export interface SSEEvent {
   event_type: string;
   data: {
     entity_id?: string;
-    new_state?: any;
-    old_state?: any;
+    new_state?: State;
+    old_state?: State;
     [key: string]: any;
   };
   origin: string;

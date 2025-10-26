@@ -116,7 +116,11 @@ export class SSEManager {
     }
 
     // Filter by entity_id
-    if (filter.entity_id && event.data.entity_id) {
+    if (filter.entity_id) {
+      if (!event.data.entity_id) {
+        return false; // Filter requires entity_id but event doesn't have one
+      }
+
       const entityIds = Array.isArray(filter.entity_id)
         ? filter.entity_id
         : [filter.entity_id];

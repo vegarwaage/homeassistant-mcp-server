@@ -81,8 +81,8 @@ describe('SSEManager', () => {
       event_type: 'state_changed',
       data: {
         entity_id: 'light.living_room',
-        new_state: { state: 'on' },
-        old_state: { state: 'off' },
+        new_state: { state: 'on' } as any,
+        old_state: { state: 'off' } as any,
       },
       origin: 'LOCAL',
       time_fired: new Date().toISOString(),
@@ -109,7 +109,7 @@ describe('SSEManager', () => {
       event_type: 'state_changed',
       data: {
         entity_id: 'light.living_room',
-        new_state: { state: 'on' },
+        new_state: { state: 'on' } as any,
       },
       origin: 'LOCAL',
       time_fired: new Date().toISOString(),
@@ -120,7 +120,7 @@ describe('SSEManager', () => {
       event_type: 'state_changed',
       data: {
         entity_id: 'light.bedroom',
-        new_state: { state: 'on' },
+        new_state: { state: 'on' } as any,
       },
       origin: 'LOCAL',
       time_fired: new Date().toISOString(),
@@ -145,7 +145,7 @@ describe('SSEManager', () => {
       event_type: 'state_changed',
       data: {
         entity_id: 'light.living_room',
-        new_state: { state: 'on' },
+        new_state: { state: 'on' } as any,
       },
       origin: 'LOCAL',
       time_fired: new Date().toISOString(),
@@ -155,7 +155,7 @@ describe('SSEManager', () => {
       event_type: 'state_changed',
       data: {
         entity_id: 'switch.kitchen',
-        new_state: { state: 'on' },
+        new_state: { state: 'on' } as any,
       },
       origin: 'LOCAL',
       time_fired: new Date().toISOString(),
@@ -184,7 +184,7 @@ describe('SSEManager', () => {
       event_type: 'state_changed',
       data: {
         entity_id: 'light.living_room',
-        new_state: { state: 'on' },
+        new_state: { state: 'on' } as any,
       },
       origin: 'LOCAL',
       time_fired: new Date().toISOString(),
@@ -195,6 +195,106 @@ describe('SSEManager', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('should filter by multiple criteria', async () => {
+    const callback = jest.fn();
+    const eventSource = manager['eventSource'] as any;
+
+    manager.subscribe({
+      domain: 'light',
+      event_type: 'state_changed',
+    }, callback);
+
+    // Event that matches both filters
+    const matchingEvent: SSEEvent = {
+      event_type: 'state_changed',
+      data: {
+        entity_id: 'light.bedroom',
+        new_state: { state: 'on' } as any,
+      },
+      origin: 'LOCAL',
+      time_fired: new Date().toISOString(),
+    };
+
+    // Event that matches domain but not event_type
+    const wrongEventType: SSEEvent = {
+      event_type: 'automation_triggered',
+      data: {
+        entity_id: 'light.bedroom',
+      },
+      origin: 'LOCAL',
+      time_fired: new Date().toISOString(),
+    };
+
+    // Event that matches event_type but not domain
+    const wrongDomain: SSEEvent = {
+      event_type: 'state_changed',
+      data: {
+        entity_id: 'switch.kitchen',
+        new_state: { state: 'on' } as any,
+      },
+      origin: 'LOCAL',
+      time_fired: new Date().toISOString(),
+    };
+
+    eventSource.simulateEvent(matchingEvent);
+    eventSource.simulateEvent(wrongEventType);
+    eventSource.simulateEvent(wrongDomain);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(matchingEvent);
+  });
+
+  it('should filter by array of entity_ids', async () => {
+    const callback = jest.fn();
+    const eventSource = manager['eventSource'] as any;
+
+    manager.subscribe({
+      entity_id: ['light.bedroom', 'light.kitchen', 'light.living_room'],
+    }, callback);
+
+    const bedroomEvent: SSEEvent = {
+      event_type: 'state_changed',
+      data: {
+        entity_id: 'light.bedroom',
+        new_state: { state: 'on' } as any,
+      },
+      origin: 'LOCAL',
+      time_fired: new Date().toISOString(),
+    };
+
+    const kitchenEvent: SSEEvent = {
+      event_type: 'state_changed',
+      data: {
+        entity_id: 'light.kitchen',
+        new_state: { state: 'on' } as any,
+      },
+      origin: 'LOCAL',
+      time_fired: new Date().toISOString(),
+    };
+
+    const bathroomEvent: SSEEvent = {
+      event_type: 'state_changed',
+      data: {
+        entity_id: 'light.bathroom',
+        new_state: { state: 'on' } as any,
+      },
+      origin: 'LOCAL',
+      time_fired: new Date().toISOString(),
+    };
+
+    eventSource.simulateEvent(bedroomEvent);
+    eventSource.simulateEvent(kitchenEvent);
+    eventSource.simulateEvent(bathroomEvent);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    expect(callback).toHaveBeenCalledTimes(2);
+    expect(callback).toHaveBeenCalledWith(bedroomEvent);
+    expect(callback).toHaveBeenCalledWith(kitchenEvent);
   });
 
   it('should handle reconnection on connection loss', async () => {
