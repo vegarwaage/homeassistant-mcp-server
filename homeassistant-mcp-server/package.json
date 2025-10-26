@@ -1,6 +1,6 @@
 {
   "name": "homeassistant-mcp-server",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Home Assistant MCP Server with stdio and HTTP transports",
   "main": "dist/index.js",
   "scripts": {
