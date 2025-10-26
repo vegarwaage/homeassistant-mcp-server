@@ -16,21 +16,41 @@ import {
 
 const execAsync = promisify(exec);
 
+interface HomeAssistantClientConfig {
+  baseUrl?: string;
+  token?: string;
+  maxConcurrent?: number;
+}
+
 export class HomeAssistantClient {
   private apiClient: AxiosInstance;
   private supervisorClient: AxiosInstance;
   private baseUrl: string;
   private token: string;
+  private maxConcurrent: number;
+  private activeRequests: number;
+  private requestQueue: Array<() => void>;
 
-  constructor(baseUrl: string = 'http://homeassistant:8123', token: string = process.env.SUPERVISOR_TOKEN || '') {
-    this.baseUrl = baseUrl;
-    this.token = token;
+  constructor(baseUrlOrConfig: string | HomeAssistantClientConfig = 'http://homeassistant:8123', token?: string) {
+    // Handle both old and new constructor signatures
+    if (typeof baseUrlOrConfig === 'string') {
+      this.baseUrl = baseUrlOrConfig;
+      this.token = token || process.env.SUPERVISOR_TOKEN || '';
+      this.maxConcurrent = Infinity;
+    } else {
+      this.baseUrl = baseUrlOrConfig.baseUrl || 'http://homeassistant:8123';
+      this.token = baseUrlOrConfig.token || process.env.SUPERVISOR_TOKEN || '';
+      this.maxConcurrent = baseUrlOrConfig.maxConcurrent || Infinity;
+    }
+
+    this.activeRequests = 0;
+    this.requestQueue = [];
 
     // REST API client
     this.apiClient = axios.create({
-      baseURL: `${baseUrl}/api`,
+      baseURL: `${this.baseUrl}/api`,
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${this.token}`,
         'Content-Type': 'application/json'
       },
       timeout: 30000
@@ -38,13 +58,102 @@ export class HomeAssistantClient {
 
     // Supervisor API client
     this.supervisorClient = axios.create({
-      baseURL: `${baseUrl}`,
+      baseURL: `${this.baseUrl}`,
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Bearer ${this.token}`,
         'Content-Type': 'application/json'
       },
       timeout: 30000
     });
+  }
+
+  /**
+   * Acquire a slot for making a request
+   */
+  private async acquireSlot(): Promise<void> {
+    if (this.activeRequests < this.maxConcurrent) {
+      this.activeRequests++;
+      return;
+    }
+
+    // Wait in queue
+    return new Promise<void>((resolve) => {
+      this.requestQueue.push(resolve);
+    });
+  }
+
+  /**
+   * Release a slot after completing a request
+   */
+  private releaseSlot(): void {
+    this.activeRequests--;
+
+    // Process next queued request
+    const next = this.requestQueue.shift();
+    if (next) {
+      this.activeRequests++;
+      next();
+    }
+  }
+
+  /**
+   * Execute an HTTP request with connection pooling
+   */
+  private async executeRequest<T>(
+    method: 'get' | 'post' | 'delete' | 'patch',
+    url: string,
+    data?: any
+  ): Promise<T> {
+    await this.acquireSlot();
+
+    try {
+      let response;
+      switch (method) {
+        case 'get':
+          response = await this.apiClient.get<T>(url);
+          break;
+        case 'post':
+          response = await this.apiClient.post<T>(url, data);
+          break;
+        case 'delete':
+          response = await this.apiClient.delete<T>(url);
+          break;
+        case 'patch':
+          response = await this.apiClient.patch<T>(url, data);
+          break;
+      }
+      return response.data;
+    } finally {
+      this.releaseSlot();
+    }
+  }
+
+  /**
+   * Generic GET request
+   */
+  async get<T = any>(url: string): Promise<T> {
+    return this.executeRequest<T>('get', url);
+  }
+
+  /**
+   * Generic POST request
+   */
+  async post<T = any>(url: string, data?: any): Promise<T> {
+    return this.executeRequest<T>('post', url, data);
+  }
+
+  /**
+   * Generic DELETE request
+   */
+  async delete<T = any>(url: string): Promise<T> {
+    return this.executeRequest<T>('delete', url);
+  }
+
+  /**
+   * Generic PATCH request
+   */
+  async patch<T = any>(url: string, data?: any): Promise<T> {
+    return this.executeRequest<T>('patch', url, data);
   }
 
   /**
