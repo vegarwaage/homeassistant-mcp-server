@@ -1,11 +1,11 @@
-import { HAClient } from '../../src/core/ha-client';
+import { HomeAssistantClient } from '../../src/ha-client';
 
-describe('HAClient', () => {
+describe('HomeAssistantClient', () => {
   it('should create client with valid config', () => {
-    const client = new HAClient({
-      baseUrl: 'http://localhost:8123',
-      token: 'test-token',
-    });
-    expect(client).toBeInstanceOf(HAClient);
+    const client = new HomeAssistantClient(
+      'http://localhost:8123',
+      'test-token'
+    );
+    expect(client).toBeInstanceOf(HomeAssistantClient);
   });
 });
