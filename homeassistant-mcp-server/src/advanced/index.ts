@@ -4,3 +4,4 @@
 export * from './types.js';
 export * from './bulk-operations.js';
 export * from './configuration-search.js';
+export * from './automation-debugging.js';
