@@ -114,11 +114,7 @@ export async function handleDatabaseTool(
   args: any,
   sessionId: string
 ): Promise<any> {
-  // Check permission
-  const permRequest = await checkPermission(sessionId);
-  if (permRequest) {
-    return { error: 'permission_required', message: permRequest, category: 'database' };
-  }
+  // Permission checks removed - handle on client side (Claude Code settings)
 
   const db = await openDatabase();
 

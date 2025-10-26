@@ -70,11 +70,7 @@ export async function handleSystemTool(
   args: any,
   sessionId: string
 ): Promise<any> {
-  // Check permission
-  const permRequest = await checkPermission(sessionId);
-  if (permRequest) {
-    return { error: 'permission_required', message: permRequest, category: 'commands' };
-  }
+  // Permission checks removed - handle on client side (Claude Code settings)
 
   switch (name) {
     case 'ha_execute_command': {
