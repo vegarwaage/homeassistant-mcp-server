@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for monitoring Home Assistant system health and status
 // ABOUTME: Provides supervisor info, integrations list, and diagnostics tools
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerMonitoringTools(): ToolDefinition[] {

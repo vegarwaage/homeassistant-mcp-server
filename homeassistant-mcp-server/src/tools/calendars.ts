@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for calendar entities and events
 // ABOUTME: Provides ha_list_calendars and ha_get_calendar_events
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerCalendarsTools(): ToolDefinition[] {

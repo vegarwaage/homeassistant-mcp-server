@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for managing Home Assistant blueprints
 // ABOUTME: Provides ha_list_blueprints and ha_import_blueprint
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerBlueprintsTools(): ToolDefinition[] {

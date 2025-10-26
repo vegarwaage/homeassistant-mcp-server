@@ -3,7 +3,7 @@
 
 import { promises as fs } from 'fs';
 import { join, resolve } from 'path';
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 import { backupFile, listBackups } from '../backup.js';
 

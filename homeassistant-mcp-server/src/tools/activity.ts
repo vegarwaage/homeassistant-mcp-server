@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for querying recent Home Assistant activity
 // ABOUTME: Provides ha_get_recent_activity with time-based filtering
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 /**

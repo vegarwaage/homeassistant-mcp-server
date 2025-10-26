@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for Home Assistant conversation and template rendering
 // ABOUTME: Provides ha_process_conversation for natural language processing and ha_render_template for Jinja2 templates
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerConversationTools(): ToolDefinition[] {

@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for searching and filtering Home Assistant entities
 // ABOUTME: Provides ha_search_entities with fuzzy search and filtering
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerSearchTools(): ToolDefinition[] {

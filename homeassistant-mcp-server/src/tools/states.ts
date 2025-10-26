@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for querying Home Assistant entity states and history
 // ABOUTME: Provides ha_get_states, ha_get_history, ha_call_service, ha_get_entity_details
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { HAState, ToolDefinition } from '../types.js';
 
 export function registerStateTools(): ToolDefinition[] {

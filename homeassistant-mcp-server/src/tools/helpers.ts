@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for managing shopping lists, todo lists, and input helpers
 // ABOUTME: Provides ha_manage_shopping_list, ha_manage_todo, ha_list_input_helpers
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerHelpersTools(): ToolDefinition[] {

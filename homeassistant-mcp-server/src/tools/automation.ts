@@ -4,7 +4,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import * as yaml from 'yaml';
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { HAAutomation, ToolDefinition } from '../types.js';
 import { backupFile } from '../backup.js';
 

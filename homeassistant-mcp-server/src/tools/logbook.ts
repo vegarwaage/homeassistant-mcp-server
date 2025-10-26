@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for accessing Home Assistant logbook entries
 // ABOUTME: Provides ha_get_logbook for viewing historical events and state changes
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerLogbookTools(): ToolDefinition[] {

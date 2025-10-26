@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for energy dashboard and long-term statistics
 // ABOUTME: Provides ha_get_energy_data and ha_get_statistics
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerEnergyTools(): ToolDefinition[] {

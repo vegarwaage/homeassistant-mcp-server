@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for sending notifications through Home Assistant
 // ABOUTME: Provides ha_send_notification for mobile app and service notifications
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerNotificationsTools(): ToolDefinition[] {

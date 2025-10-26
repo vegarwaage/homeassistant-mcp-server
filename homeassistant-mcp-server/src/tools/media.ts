@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for camera snapshots and media player control
 // ABOUTME: Provides ha_get_camera_snapshot and ha_control_media_player
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerMediaTools(): ToolDefinition[] {

@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for querying Home Assistant organizational structures
 // ABOUTME: Provides ha_list_areas, ha_list_labels, ha_list_devices using template API
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 /**

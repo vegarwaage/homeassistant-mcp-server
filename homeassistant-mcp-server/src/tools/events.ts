@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for firing custom events and viewing event listeners
 // ABOUTME: Provides ha_fire_event and ha_list_event_listeners
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerEventsTools(): ToolDefinition[] {

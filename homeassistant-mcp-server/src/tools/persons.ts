@@ -1,7 +1,7 @@
 // ABOUTME: MCP tools for person entities and location tracking
 // ABOUTME: Provides ha_get_person_location to track person entity locations
 
-import { HomeAssistantClient } from '../ha-client.js';
+import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
 
 export function registerPersonTools(): ToolDefinition[] {
