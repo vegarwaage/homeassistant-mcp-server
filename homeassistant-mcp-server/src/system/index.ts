@@ -3,3 +3,4 @@
 
 export * from './types.js';
 export * from './addons.js';
+export * from './integrations.js';
