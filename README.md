@@ -2,9 +2,9 @@
 
 MCP (Model Context Protocol) server for integrating Home Assistant with Claude Code and Claude Desktop.
 
-**Status**: ✅ Fully working with stdio transport (SSH-based)
-**Version**: 0.1.3
-**Last Updated**: October 25, 2025
+**Status**: ✅ Fully working with stdio transport (SSH-based) and auto-deployment
+**Version**: 1.1.0
+**Last Updated**: October 26, 2025
 
 ## Features
 
@@ -34,14 +34,16 @@ MCP (Model Context Protocol) server for integrating Home Assistant with Claude C
 
 ## Installation
 
-### Via Custom Repository (Recommended)
+### Via GitHub Repository (Recommended)
 
 1. In Home Assistant: **Settings** → **Add-ons** → **Add-on Store** → **⋮ menu** → **Repositories**
-2. Add repository URL: `https://github.com/selwa/homeassistant-mcp-server`
-3. Find "Home Assistant MCP Server" in the add-on store
-4. Click **Install**
-5. Configure addon (see Configuration section)
-6. Start the addon
+2. Add repository URL: `https://github.com/vegarwaage/homeassistant-mcp-server`
+3. Find "MCP Server for Home Assistant" in the add-on store
+4. Click **Install** (version 1.1.0+)
+5. Start the add-on (it will auto-deploy to `/config/mcp-server`)
+6. Check logs to confirm deployment
+
+**Auto-deployment**: The add-on automatically deploys itself to `/config/mcp-server` on startup, enabling seamless updates from GitHub.
 
 ### Manual Installation
 
@@ -67,17 +69,24 @@ The server uses a **monolithic with transport layer** design:
 
 ## Connecting Claude Clients
 
-### Claude Code (Recommended Method)
+### Claude Code
 
-Use the CLI to configure MCP server:
+Edit `~/.claude/mcp.json`:
 
-```bash
-claude mcp add --transport stdio --scope user homeassistant \
-  ssh root@homeassistant.local \
-  "cd /root/ha-mcp-server && SUPERVISOR_TOKEN='your_token_here' node dist/index.js"
+```json
+{
+  "mcpServers": {
+    "homeassistant": {
+      "type": "stdio",
+      "command": "ssh",
+      "args": [
+        "root@homeassistant.local",
+        "cd /config/mcp-server && SUPERVISOR_TOKEN='your_token_here' node dist/index.js"
+      ]
+    }
+  }
+}
 ```
-
-This updates `~/.claude.json` with the correct configuration.
 
 ### Claude Desktop
 
@@ -90,7 +99,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac):
       "command": "ssh",
       "args": [
         "root@homeassistant.local",
-        "cd /root/ha-mcp-server && SUPERVISOR_TOKEN='your_token_here' node dist/index.js"
+        "cd /config/mcp-server && SUPERVISOR_TOKEN='your_token_here' node dist/index.js"
       ]
     }
   }
