@@ -3,6 +3,7 @@ FROM node:20-alpine
 # Install dependencies
 RUN apk add --no-cache \
     bash \
+    jq \
     python3 \
     make \
     g++ \

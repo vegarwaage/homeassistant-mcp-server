@@ -1,6 +1,6 @@
 name: "MCP Server for Home Assistant"
 description: "Model Context Protocol server with full API and root-level access"
-version: "0.3.1"
+version: "0.3.2"
 slug: "homeassistant-mcp-server"
 init: false
 arch:
