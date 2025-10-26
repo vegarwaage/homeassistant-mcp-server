@@ -31,4 +31,5 @@ RUN npm prune --production
 # Make run script executable
 RUN chmod +x /app/run.sh
 
+# Run script sets up env vars and keeps container alive
 CMD ["/app/run.sh"]
