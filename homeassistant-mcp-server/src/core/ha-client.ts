@@ -16,7 +16,7 @@ import {
 
 const execAsync = promisify(exec);
 
-interface HomeAssistantClientConfig {
+export interface HomeAssistantClientConfig {
   baseUrl?: string;
   token?: string;
   maxConcurrent?: number;
@@ -102,24 +102,26 @@ export class HomeAssistantClient {
   private async executeRequest<T>(
     method: 'get' | 'post' | 'delete' | 'patch',
     url: string,
-    data?: any
+    data?: any,
+    useSupervisor = false
   ): Promise<T> {
     await this.acquireSlot();
 
     try {
+      const client = useSupervisor ? this.supervisorClient : this.apiClient;
       let response;
       switch (method) {
         case 'get':
-          response = await this.apiClient.get<T>(url);
+          response = await client.get<T>(url);
           break;
         case 'post':
-          response = await this.apiClient.post<T>(url, data);
+          response = await client.post<T>(url, data);
           break;
         case 'delete':
-          response = await this.apiClient.delete<T>(url);
+          response = await client.delete<T>(url);
           break;
         case 'patch':
-          response = await this.apiClient.patch<T>(url, data);
+          response = await client.patch<T>(url, data);
           break;
       }
       return response.data;
@@ -157,15 +159,44 @@ export class HomeAssistantClient {
   }
 
   /**
+   * Supervisor GET request
+   */
+  private async supervisorGet<T = any>(url: string): Promise<T> {
+    return this.executeRequest<T>('get', url, undefined, true);
+  }
+
+  /**
+   * Supervisor POST request
+   */
+  private async supervisorPost<T = any>(url: string, data?: any): Promise<T> {
+    return this.executeRequest<T>('post', url, data, true);
+  }
+
+  /**
+   * GET request that returns binary data (ArrayBuffer)
+   */
+  private async getBinary(url: string): Promise<ArrayBuffer> {
+    await this.acquireSlot();
+
+    try {
+      const response = await this.apiClient.get(url, {
+        responseType: 'arraybuffer'
+      });
+      return response.data;
+    } finally {
+      this.releaseSlot();
+    }
+  }
+
+  /**
    * Get all entity states or filter by entity_id
    */
   async getStates(entityId?: string): Promise<HAState[]> {
     if (entityId) {
-      const response = await this.apiClient.get<HAState>(`/states/${entityId}`);
-      return [response.data];
+      const state = await this.get<HAState>(`/states/${entityId}`);
+      return [state];
     }
-    const response = await this.apiClient.get<HAState[]>('/states');
-    return response.data;
+    return this.get<HAState[]>('/states');
   }
 
   /**
@@ -188,23 +219,12 @@ export class HomeAssistantClient {
     }
 
     const endpoint = query.start_time
-      ? `/api/history/period/${query.start_time}`
-      : '/api/history/period';
+      ? `/history/period/${query.start_time}`
+      : '/history/period';
 
     const url = params.toString() ? `${endpoint}?${params.toString()}` : endpoint;
 
-    const response = await fetch(`${this.baseUrl}${url}`, {
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`History request failed: ${response.statusText}`);
-    }
-
-    return response.json() as Promise<HAState[][]>;
+    return this.get<HAState[][]>(url);
   }
 
   /**
@@ -213,16 +233,14 @@ export class HomeAssistantClient {
   async callService(serviceCall: HAServiceCall): Promise<any> {
     const { domain, service, service_data, target } = serviceCall;
     const data = { ...service_data, ...target };
-    const response = await this.apiClient.post(`/services/${domain}/${service}`, data);
-    return response.data;
+    return this.post(`/services/${domain}/${service}`, data);
   }
 
   /**
    * Get system information
    */
   async getSystemInfo(): Promise<HASystemInfo> {
-    const response = await this.apiClient.get<HASystemInfo>('/config');
-    return response.data;
+    return this.get<HASystemInfo>('/config');
   }
 
   /**
@@ -303,8 +321,7 @@ export class HomeAssistantClient {
    * Render a Jinja2 template using Home Assistant's template API
    */
   async renderTemplate(template: string): Promise<any> {
-    const response = await this.apiClient.post('/template', { template });
-    return response.data;
+    return this.post('/template', { template });
   }
 
   /**
@@ -316,8 +333,7 @@ export class HomeAssistantClient {
     agent_id?: string;
     language?: string;
   }): Promise<any> {
-    const response = await this.apiClient.post('/conversation/process', params);
-    return response.data;
+    return this.post('/conversation/process', params);
   }
 
   /**
@@ -326,8 +342,7 @@ export class HomeAssistantClient {
   async getSupervisorInfo(component?: 'supervisor' | 'core' | 'os' | 'host'): Promise<any> {
     if (component) {
       try {
-        const response = await this.supervisorClient.get(`/supervisor/${component}/info`);
-        return response.data;
+        return await this.supervisorGet(`/supervisor/${component}/info`);
       } catch (error: any) {
         if (error.response?.status === 404 || error.code === 'ECONNREFUSED') {
           throw new Error(`Supervisor ${component} API not available. This may not be a Supervisor installation.`);
@@ -342,8 +357,7 @@ export class HomeAssistantClient {
 
     for (const comp of components) {
       try {
-        const response = await this.supervisorClient.get(`/supervisor/${comp}/info`);
-        results[comp] = response.data;
+        results[comp] = await this.supervisorGet(`/supervisor/${comp}/info`);
       } catch (error: any) {
         results[comp] = { error: `Not available: ${error.message}` };
       }
@@ -356,8 +370,7 @@ export class HomeAssistantClient {
    * Get list of loaded integrations/components
    */
   async getIntegrations(): Promise<string[]> {
-    const response = await this.apiClient.get<string[]>('/config/components');
-    return response.data;
+    return this.get<string[]>('/config/components');
   }
 
   /**
@@ -366,15 +379,14 @@ export class HomeAssistantClient {
   async getDiagnostics(): Promise<any> {
     try {
       // Try supervisor resolution info first
-      const response = await this.supervisorClient.get('/supervisor/resolution/info');
-      return response.data;
+      return await this.supervisorGet('/supervisor/resolution/info');
     } catch (error: any) {
       // Fallback to core info if supervisor not available
       try {
-        const response = await this.apiClient.get('/config/core');
+        const coreInfo = await this.get('/config/core');
         return {
           fallback: true,
-          core_info: response.data,
+          core_info: coreInfo,
           message: 'Supervisor diagnostics not available, showing core info'
         };
       } catch (fallbackError: any) {
@@ -392,17 +404,7 @@ export class HomeAssistantClient {
       return `${this.baseUrl}/api/camera_proxy/${entityId}`;
     } else {
       // Fetch the image and return as base64
-      const response = await fetch(`${this.baseUrl}/api/camera_proxy/${entityId}`, {
-        headers: {
-          'Authorization': `Bearer ${this.token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch camera snapshot: ${response.statusText}`);
-      }
-
-      const arrayBuffer = await response.arrayBuffer();
+      const arrayBuffer = await this.getBinary(`/camera_proxy/${entityId}`);
       const buffer = Buffer.from(arrayBuffer);
       return buffer.toString('base64');
     }
@@ -417,8 +419,7 @@ export class HomeAssistantClient {
     end_time?: string;
   }): Promise<any> {
     // Home Assistant energy endpoint
-    const response = await this.apiClient.get('/energy/info');
-    return response.data;
+    return this.get('/energy/info');
   }
 
   /**
@@ -444,23 +445,21 @@ export class HomeAssistantClient {
       data.end_time = end_time;
     }
 
-    const response = await this.apiClient.post('/history/statistics', data);
-    return response.data;
+    return this.post('/history/statistics', data);
   }
 
   /**
    * Fire a custom event with optional data payload
    */
   async fireEvent(eventType: string, eventData?: Record<string, any>): Promise<void> {
-    await this.apiClient.post(`/events/${eventType}`, eventData || {});
+    await this.post(`/events/${eventType}`, eventData || {});
   }
 
   /**
    * Get all active event listeners and their counts
    */
   async getEventListeners(): Promise<any[]> {
-    const response = await this.apiClient.get('/events');
-    return response.data;
+    return this.get('/events');
   }
 
   /**
@@ -481,14 +480,7 @@ export class HomeAssistantClient {
   }): Promise<any[]> {
     const { entityId, start, end } = params;
 
-    const response = await this.apiClient.get(`/calendars/${entityId}`, {
-      params: {
-        start,
-        end
-      }
-    });
-
-    return response.data;
+    return this.get(`/calendars/${entityId}?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`);
   }
 
   /**
@@ -506,15 +498,12 @@ export class HomeAssistantClient {
       ? `/logbook/${start_time}`
       : '/logbook';
 
-    const queryParams: any = {};
-    if (end_time) queryParams.end_time = end_time;
-    if (entity_id) queryParams.entity = entity_id;
+    const queryParts: string[] = [];
+    if (end_time) queryParts.push(`end_time=${encodeURIComponent(end_time)}`);
+    if (entity_id) queryParts.push(`entity=${encodeURIComponent(entity_id)}`);
 
-    const response = await this.apiClient.get(endpoint, {
-      params: queryParams
-    });
-
-    const entries = response.data;
+    const url = queryParts.length > 0 ? `${endpoint}?${queryParts.join('&')}` : endpoint;
+    const entries = await this.get(url);
     return limit ? entries.slice(0, limit) : entries;
   }
 
@@ -522,18 +511,14 @@ export class HomeAssistantClient {
    * List available blueprints by domain
    */
   async listBlueprints(domain: 'automation' | 'script'): Promise<any> {
-    const response = await this.apiClient.get(`/blueprint/${domain}`);
-    return response.data;
+    return this.get(`/blueprint/${domain}`);
   }
 
   /**
    * Import blueprint from URL
    */
   async importBlueprint(url: string): Promise<any> {
-    const response = await this.apiClient.post('/blueprint/import', {
-      url
-    });
-    return response.data;
+    return this.post('/blueprint/import', { url });
   }
 
   /**
