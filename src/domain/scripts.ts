@@ -13,7 +13,7 @@ export function createScriptTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        const states = await client.get<any[]>('/api/states');
+        const states = await client.get<any[]>('/states');
         return states
           .filter((state: any) => state.entity_id.startsWith('script.'))
           .map((state: any) => ({
@@ -47,7 +47,7 @@ export function createScriptTools(client: HomeAssistantClient) {
           data.variables = variables;
         }
 
-        await client.post('/api/services/script/turn_on', data);
+        await client.post('/services/script/turn_on', data);
         return { success: true, entity_id };
       },
     },
@@ -60,7 +60,7 @@ export function createScriptTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        await client.post('/api/services/script/reload');
+        await client.post('/services/script/reload');
         return { success: true };
       },
     },
@@ -101,7 +101,7 @@ export function createScriptTools(client: HomeAssistantClient) {
         if (name) config.alias = name;
         if (mode) config.mode = mode;
 
-        await client.post(`/api/config/script/config/${script_id}`, config);
+        await client.post(`/config/script/config/${script_id}`, config);
         return { success: true, entity_id: `script.${script_id}` };
       },
     },
@@ -143,7 +143,7 @@ export function createScriptTools(client: HomeAssistantClient) {
         if (sequence) config.sequence = sequence;
         if (mode) config.mode = mode;
 
-        await client.post(`/api/config/script/config/${script_id}`, config);
+        await client.post(`/config/script/config/${script_id}`, config);
         return { success: true, entity_id: `script.${script_id}` };
       },
     },
@@ -159,7 +159,7 @@ export function createScriptTools(client: HomeAssistantClient) {
         required: ['script_id'],
       },
       handler: async ({ script_id }: { script_id: string }) => {
-        await client.delete(`/api/config/script/config/${script_id}`);
+        await client.delete(`/config/script/config/${script_id}`);
         return { success: true, entity_id: `script.${script_id}` };
       },
     },

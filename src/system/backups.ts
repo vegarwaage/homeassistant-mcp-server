@@ -13,7 +13,7 @@ export function createBackupTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        const response = await client.get<any>('/api/hassio/backups');
+        const response = await client.get<any>('/hassio/backups');
         return response.backups || [];
       },
     },
@@ -29,7 +29,7 @@ export function createBackupTools(client: HomeAssistantClient) {
         required: ['slug'],
       },
       handler: async ({ slug }: { slug: string }) => {
-        return await client.get(`/api/hassio/backups/${slug}/info`);
+        return await client.get(`/hassio/backups/${slug}/info`);
       },
     },
 
@@ -74,7 +74,7 @@ export function createBackupTools(client: HomeAssistantClient) {
         if (addons) data.addons = addons;
         if (folders) data.folders = folders;
 
-        const result = await client.post('/api/hassio/backups/new', data);
+        const result = await client.post('/hassio/backups/new', data);
         return { success: true, slug: result.slug, ...result };
       },
     },
@@ -94,7 +94,7 @@ export function createBackupTools(client: HomeAssistantClient) {
         const data: any = {};
         if (password) data.password = password;
 
-        await client.post(`/api/hassio/backups/${slug}/restore/full`, data);
+        await client.post(`/hassio/backups/${slug}/restore/full`, data);
         return { success: true, slug };
       },
     },
@@ -110,7 +110,7 @@ export function createBackupTools(client: HomeAssistantClient) {
         required: ['slug'],
       },
       handler: async ({ slug }: { slug: string }) => {
-        await client.delete(`/api/hassio/backups/${slug}`);
+        await client.delete(`/hassio/backups/${slug}`);
         return { success: true, slug };
       },
     },

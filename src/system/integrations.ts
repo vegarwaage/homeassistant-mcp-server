@@ -13,7 +13,7 @@ export function createIntegrationTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        return await client.get<any[]>('/api/config/config_entries/entry');
+        return await client.get<any[]>('/config/config_entries/entry');
       },
     },
 
@@ -25,7 +25,7 @@ export function createIntegrationTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        return await client.get('/api/config/integrations/discover');
+        return await client.get('/config/integrations/discover');
       },
     },
 
@@ -40,7 +40,7 @@ export function createIntegrationTools(client: HomeAssistantClient) {
         required: ['domain'],
       },
       handler: async ({ domain }: { domain: string }) => {
-        const result = await client.post('/api/config/config_entries/flow', { handler: domain });
+        const result = await client.post('/config/config_entries/flow', { handler: domain });
         return { success: true, flow_id: result.flow_id, ...result };
       },
     },
@@ -61,7 +61,7 @@ export function createIntegrationTools(client: HomeAssistantClient) {
         required: ['flow_id', 'user_input'],
       },
       handler: async ({ flow_id, user_input }: { flow_id: string; user_input: Record<string, any> }) => {
-        const result = await client.post(`/api/config/config_entries/flow/${flow_id}`, user_input);
+        const result = await client.post(`/config/config_entries/flow/${flow_id}`, user_input);
         return { success: true, ...result };
       },
     },
@@ -77,7 +77,7 @@ export function createIntegrationTools(client: HomeAssistantClient) {
         required: ['entry_id'],
       },
       handler: async ({ entry_id }: { entry_id: string }) => {
-        await client.post(`/api/config/config_entries/entry/${entry_id}/reload`);
+        await client.post(`/config/config_entries/entry/${entry_id}/reload`);
         return { success: true, entry_id };
       },
     },
@@ -93,7 +93,7 @@ export function createIntegrationTools(client: HomeAssistantClient) {
         required: ['entry_id'],
       },
       handler: async ({ entry_id }: { entry_id: string }) => {
-        await client.delete(`/api/config/config_entries/entry/${entry_id}`);
+        await client.delete(`/config/config_entries/entry/${entry_id}`);
         return { success: true, entry_id };
       },
     },
@@ -114,7 +114,7 @@ export function createIntegrationTools(client: HomeAssistantClient) {
         required: ['entry_id', 'options'],
       },
       handler: async ({ entry_id, options }: { entry_id: string; options: Record<string, any> }) => {
-        await client.post(`/api/config/config_entries/options/flow`, {
+        await client.post(`/config/config_entries/options/flow`, {
           handler: entry_id,
           ...options,
         });

@@ -169,7 +169,9 @@ export class HomeAssistantClient {
 
     try {
       return await this.withRetry(async () => {
-        const client = useSupervisor ? this.supervisorClient : this.apiClient;
+        // Auto-detect Supervisor endpoints
+        const isSupervisorEndpoint = url.startsWith('/hassio/') || url.startsWith('/supervisor/');
+        const client = (useSupervisor || isSupervisorEndpoint) ? this.supervisorClient : this.apiClient;
         let response;
         switch (method) {
           case 'get':
@@ -432,7 +434,8 @@ export class HomeAssistantClient {
    * Get list of loaded integrations/components
    */
   async getIntegrations(): Promise<string[]> {
-    return this.get<string[]>('/config/components');
+    const config = await this.get<HASystemInfo>('/config');
+    return config.components || [];
   }
 
   /**

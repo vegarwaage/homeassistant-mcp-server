@@ -21,7 +21,7 @@ export function createAutomationHelperTools(client: HomeAssistantClient) {
       },
       handler: async ({ config }: { config: Record<string, any> }) => {
         try {
-          await client.post('/api/config/core/check_config', {
+          await client.post('/config/core/check_config', {
             automation: [config],
           });
           return { valid: true, message: 'Automation configuration is valid' };
@@ -51,7 +51,7 @@ export function createAutomationHelperTools(client: HomeAssistantClient) {
       },
       handler: async ({ condition }: { condition: Record<string, any> }) => {
         try {
-          const result = await client.post<any>('/api/template', {
+          const result = await client.post<any>('/template', {
             template: '{{ true }}',
           });
 

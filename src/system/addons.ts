@@ -13,7 +13,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        const response = await client.get<any>('/api/hassio/addons');
+        const response = await client.get<any>('/hassio/addons');
         return response.addons || [];
       },
     },
@@ -29,7 +29,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         required: ['addon'],
       },
       handler: async ({ addon }: { addon: string }) => {
-        return await client.get(`/api/hassio/addons/${addon}/info`);
+        return await client.get(`/hassio/addons/${addon}/info`);
       },
     },
 
@@ -44,7 +44,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         required: ['addon'],
       },
       handler: async ({ addon }: { addon: string }) => {
-        await client.post(`/api/hassio/addons/${addon}/start`);
+        await client.post(`/hassio/addons/${addon}/start`);
         return { success: true, addon };
       },
     },
@@ -60,7 +60,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         required: ['addon'],
       },
       handler: async ({ addon }: { addon: string }) => {
-        await client.post(`/api/hassio/addons/${addon}/stop`);
+        await client.post(`/hassio/addons/${addon}/stop`);
         return { success: true, addon };
       },
     },
@@ -76,7 +76,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         required: ['addon'],
       },
       handler: async ({ addon }: { addon: string }) => {
-        await client.post(`/api/hassio/addons/${addon}/restart`);
+        await client.post(`/hassio/addons/${addon}/restart`);
         return { success: true, addon };
       },
     },
@@ -92,7 +92,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         required: ['addon'],
       },
       handler: async ({ addon }: { addon: string }) => {
-        await client.post(`/api/hassio/addons/${addon}/install`);
+        await client.post(`/hassio/addons/${addon}/install`);
         return { success: true, addon };
       },
     },
@@ -108,7 +108,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         required: ['addon'],
       },
       handler: async ({ addon }: { addon: string }) => {
-        await client.post(`/api/hassio/addons/${addon}/uninstall`);
+        await client.post(`/hassio/addons/${addon}/uninstall`);
         return { success: true, addon };
       },
     },
@@ -124,7 +124,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         required: ['addon'],
       },
       handler: async ({ addon }: { addon: string }) => {
-        await client.post(`/api/hassio/addons/${addon}/update`);
+        await client.post(`/hassio/addons/${addon}/update`);
         return { success: true, addon };
       },
     },
@@ -162,7 +162,7 @@ export function createAddonTools(client: HomeAssistantClient) {
         if (boot) data.boot = boot;
         if (auto_update !== undefined) data.auto_update = auto_update;
 
-        await client.post(`/api/hassio/addons/${addon}/options`, data);
+        await client.post(`/hassio/addons/${addon}/options`, data);
         return { success: true, addon };
       },
     },

@@ -13,7 +13,7 @@ export function createHelperTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        const states = await client.get<any[]>('/api/states');
+        const states = await client.get<any[]>('/states');
         return states
           .filter((state: any) => state.entity_id.startsWith('input_'))
           .map((state: any) => ({
@@ -43,7 +43,7 @@ export function createHelperTools(client: HomeAssistantClient) {
         if (initial !== undefined) config.initial = initial;
         if (icon) config.icon = icon;
 
-        await client.post(`/api/config/input_boolean/config/${helper_id}`, config);
+        await client.post(`/config/input_boolean/config/${helper_id}`, config);
         return { success: true, entity_id: `input_boolean.${helper_id}` };
       },
     },
@@ -92,7 +92,7 @@ export function createHelperTools(client: HomeAssistantClient) {
         if (unit_of_measurement) config.unit_of_measurement = unit_of_measurement;
         if (icon) config.icon = icon;
 
-        await client.post(`/api/config/input_number/config/${helper_id}`, config);
+        await client.post(`/config/input_number/config/${helper_id}`, config);
         return { success: true, entity_id: `input_number.${helper_id}` };
       },
     },
@@ -139,7 +139,7 @@ export function createHelperTools(client: HomeAssistantClient) {
         if (pattern) config.pattern = pattern;
         if (icon) config.icon = icon;
 
-        await client.post(`/api/config/input_text/config/${helper_id}`, config);
+        await client.post(`/config/input_text/config/${helper_id}`, config);
         return { success: true, entity_id: `input_text.${helper_id}` };
       },
     },
@@ -177,7 +177,7 @@ export function createHelperTools(client: HomeAssistantClient) {
         if (initial) config.initial = initial;
         if (icon) config.icon = icon;
 
-        await client.post(`/api/config/input_select/config/${helper_id}`, config);
+        await client.post(`/config/input_select/config/${helper_id}`, config);
         return { success: true, entity_id: `input_select.${helper_id}` };
       },
     },
@@ -216,7 +216,7 @@ export function createHelperTools(client: HomeAssistantClient) {
         if (initial) config.initial = initial;
         if (icon) config.icon = icon;
 
-        await client.post(`/api/config/input_datetime/config/${helper_id}`, config);
+        await client.post(`/config/input_datetime/config/${helper_id}`, config);
         return { success: true, entity_id: `input_datetime.${helper_id}` };
       },
     },
@@ -238,7 +238,7 @@ export function createHelperTools(client: HomeAssistantClient) {
       },
       handler: async ({ entity_id, config }: { entity_id: string; config: Record<string, any> }) => {
         const [domain, helper_id] = entity_id.split('.');
-        await client.post(`/api/config/${domain}/config/${helper_id}`, config);
+        await client.post(`/config/${domain}/config/${helper_id}`, config);
         return { success: true, entity_id };
       },
     },
@@ -255,7 +255,7 @@ export function createHelperTools(client: HomeAssistantClient) {
       },
       handler: async ({ entity_id }: { entity_id: string }) => {
         const [domain, helper_id] = entity_id.split('.');
-        await client.delete(`/api/config/${domain}/config/${helper_id}`);
+        await client.delete(`/config/${domain}/config/${helper_id}`);
         return { success: true, entity_id };
       },
     },

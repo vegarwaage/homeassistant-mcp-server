@@ -19,7 +19,7 @@ export function createHACSTools(client: HomeAssistantClient) {
         },
       },
       handler: async ({ category }: { category?: string } = {}) => {
-        const response = await client.get<any>('/api/hacs/repositories');
+        const response = await client.get<any>('/hacs/repositories');
         if (category) {
           return response.filter((repo: any) => repo.category === category);
         }
@@ -38,7 +38,7 @@ export function createHACSTools(client: HomeAssistantClient) {
         required: ['repository_id'],
       },
       handler: async ({ repository_id }: { repository_id: string }) => {
-        return await client.get(`/api/hacs/repository/${repository_id}`);
+        return await client.get(`/hacs/repository/${repository_id}`);
       },
     },
 
@@ -57,7 +57,7 @@ export function createHACSTools(client: HomeAssistantClient) {
         const data: any = {};
         if (version) data.version = version;
 
-        await client.post(`/api/hacs/repository/${repository_id}/install`, data);
+        await client.post(`/hacs/repository/${repository_id}/install`, data);
         return { success: true, repository_id };
       },
     },
@@ -73,7 +73,7 @@ export function createHACSTools(client: HomeAssistantClient) {
         required: ['repository_id'],
       },
       handler: async ({ repository_id }: { repository_id: string }) => {
-        await client.post(`/api/hacs/repository/${repository_id}/update`);
+        await client.post(`/hacs/repository/${repository_id}/update`);
         return { success: true, repository_id };
       },
     },
@@ -89,7 +89,7 @@ export function createHACSTools(client: HomeAssistantClient) {
         required: ['repository_id'],
       },
       handler: async ({ repository_id }: { repository_id: string }) => {
-        await client.delete(`/api/hacs/repository/${repository_id}`);
+        await client.delete(`/hacs/repository/${repository_id}`);
         return { success: true, repository_id };
       },
     },

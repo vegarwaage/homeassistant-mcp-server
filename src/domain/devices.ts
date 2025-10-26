@@ -13,7 +13,25 @@ export function createDeviceTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        return await client.get<any[]>('/api/config/device_registry/list');
+        const template = `
+{%- set ns = namespace(result=[]) -%}
+{%- for area_id in areas() -%}
+  {%- for device_id in area_devices(area_id) -%}
+    {%- set device_name = device_attr(device_id, 'name') -%}
+    {%- set device_entities = device_entities(device_id) | list -%}
+    {%- set ns.result = ns.result + [{
+      'device_id': device_id,
+      'name': device_name,
+      'area_id': area_id,
+      'entity_ids': device_entities,
+      'entity_count': device_entities | count
+    }] -%}
+  {%- endfor -%}
+{%- endfor -%}
+{{ ns.result | tojson }}
+`;
+        const devices = await client.renderTemplate(template);
+        return Array.isArray(devices) ? devices : [];
       },
     },
 
@@ -28,7 +46,7 @@ export function createDeviceTools(client: HomeAssistantClient) {
         required: ['device_id'],
       },
       handler: async ({ device_id }: { device_id: string }) => {
-        return await client.get(`/api/config/device_registry/device/${device_id}`);
+        return await client.get(`/config/device_registry/device/${device_id}`);
       },
     },
 
@@ -61,7 +79,7 @@ export function createDeviceTools(client: HomeAssistantClient) {
         if (area_id !== undefined) data.area_id = area_id;
         if (disabled_by !== undefined) data.disabled_by = disabled_by;
 
-        const result = await client.post('/api/config/device_registry/update', data);
+        const result = await client.post('/config/device_registry/update', data);
         return { success: true, ...result };
       },
     },
@@ -77,7 +95,7 @@ export function createDeviceTools(client: HomeAssistantClient) {
         required: ['device_id'],
       },
       handler: async ({ device_id }: { device_id: string }) => {
-        await client.post('/api/config/device_registry/update', {
+        await client.post('/config/device_registry/update', {
           device_id,
           disabled_by: null,
         });
@@ -96,7 +114,7 @@ export function createDeviceTools(client: HomeAssistantClient) {
         required: ['device_id'],
       },
       handler: async ({ device_id }: { device_id: string }) => {
-        await client.post('/api/config/device_registry/update', {
+        await client.post('/config/device_registry/update', {
           device_id,
           disabled_by: 'user',
         });
@@ -112,7 +130,21 @@ export function createDeviceTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        return await client.get<any[]>('/api/config/entity_registry/list');
+        const template = `
+{%- set ns = namespace(result=[]) -%}
+{%- for state in states -%}
+  {%- set ns.result = ns.result + [{
+    'entity_id': state.entity_id,
+    'name': state.name,
+    'state': state.state,
+    'domain': state.domain,
+    'object_id': state.object_id
+  }] -%}
+{%- endfor -%}
+{{ ns.result | tojson }}
+`;
+        const entities = await client.renderTemplate(template);
+        return Array.isArray(entities) ? entities : [];
       },
     },
 
@@ -153,7 +185,7 @@ export function createDeviceTools(client: HomeAssistantClient) {
         if (disabled_by !== undefined) data.disabled_by = disabled_by;
         if (hidden_by !== undefined) data.hidden_by = hidden_by;
 
-        const result = await client.post('/api/config/entity_registry/update', data);
+        const result = await client.post('/config/entity_registry/update', data);
         return { success: true, ...result };
       },
     },

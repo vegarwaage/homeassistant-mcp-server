@@ -77,11 +77,18 @@ export interface HAHistoryQuery {
  */
 export interface HASystemInfo {
   version: string;
-  installation_type: string;
-  os_name: string;
-  os_version: string;
-  hostname: string;
+  installation_type?: string;
+  os_name?: string;
+  os_version?: string;
+  hostname?: string;
   supervisor?: string;
+  components?: string[];
+  config_dir?: string;
+  latitude?: number;
+  longitude?: number;
+  time_zone?: string;
+  unit_system?: Record<string, any>;
+  state?: string;
 }
 
 /**

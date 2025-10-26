@@ -13,7 +13,7 @@ export function createSceneTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        const states = await client.get<any[]>('/api/states');
+        const states = await client.get<any[]>('/states');
         return states
           .filter((state: any) => state.entity_id.startsWith('scene.'))
           .map((state: any) => ({
@@ -35,7 +35,7 @@ export function createSceneTools(client: HomeAssistantClient) {
         required: ['entity_id'],
       },
       handler: async ({ entity_id }: { entity_id: string }) => {
-        await client.post('/api/services/scene/turn_on', {
+        await client.post('/services/scene/turn_on', {
           entity_id,
         });
         return { success: true, entity_id };
@@ -60,7 +60,7 @@ export function createSceneTools(client: HomeAssistantClient) {
       handler: async ({ name, entities }: { name: string; entities: string[] }) => {
         const scene_id = name.toLowerCase().replace(/\s+/g, '_');
 
-        await client.post('/api/services/scene/create', {
+        await client.post('/services/scene/create', {
           scene_id,
           snapshot_entities: entities,
         });
@@ -84,7 +84,7 @@ export function createSceneTools(client: HomeAssistantClient) {
         required: ['entity_id'],
       },
       handler: async ({ entity_id }: { entity_id: string }) => {
-        await client.post('/api/services/scene/delete', {
+        await client.post('/services/scene/delete', {
           entity_id,
         });
         return { success: true, entity_id };

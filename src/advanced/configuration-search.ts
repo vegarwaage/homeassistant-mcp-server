@@ -13,55 +13,84 @@ export function createConfigurationSearchTools(client: HomeAssistantClient) {
         properties: {
           query: { type: 'string', description: 'Search query (entity_id, name, etc.)' },
           domain: { type: 'string', description: 'Filter by domain' },
-          platform: { type: 'string', description: 'Filter by platform' },
-          area_id: { type: 'string', description: 'Filter by area' },
-          device_id: { type: 'string', description: 'Filter by device' },
+          area: { type: 'string', description: 'Filter by area name' },
+          device_class: { type: 'string', description: 'Filter by device_class' },
+          state: { type: 'string', description: 'Filter by current state' },
+          label: { type: 'string', description: 'Filter by label name' },
+          limit: { type: 'number', description: 'Maximum number of results (default: 20)' },
         },
       },
       handler: async ({
         query,
         domain,
-        platform,
-        area_id,
-        device_id,
+        area,
+        device_class,
+        state,
+        label,
+        limit = 20,
       }: {
         query?: string;
         domain?: string;
-        platform?: string;
-        area_id?: string;
-        device_id?: string;
+        area?: string;
+        device_class?: string;
+        state?: string;
+        label?: string;
+        limit?: number;
       } = {}) => {
-        const entities = await client.get<any[]>('/api/config/entity_registry/list');
-
-        let filtered = entities;
+        // Build filter conditions
+        const filters: string[] = [];
 
         if (query) {
-          const lowerQuery = query.toLowerCase();
-          filtered = filtered.filter(
-            (entity: any) =>
-              entity.entity_id?.toLowerCase().includes(lowerQuery) ||
-              entity.name?.toLowerCase().includes(lowerQuery) ||
-              entity.original_name?.toLowerCase().includes(lowerQuery)
-          );
+          const safeQuery = query.toLowerCase().replace(/'/g, "\\'");
+          filters.push(`('${safeQuery}' in state_obj.entity_id.lower() or '${safeQuery}' in state_obj.name.lower())`);
         }
 
         if (domain) {
-          filtered = filtered.filter((entity: any) => entity.entity_id?.startsWith(`${domain}.`));
+          filters.push(`state_obj.domain == '${domain}'`);
         }
 
-        if (platform) {
-          filtered = filtered.filter((entity: any) => entity.platform === platform);
+        if (area) {
+          const safeArea = area.replace(/'/g, "\\'");
+          filters.push(`area_name(area_id(state_obj.entity_id)) == '${safeArea}'`);
         }
 
-        if (area_id) {
-          filtered = filtered.filter((entity: any) => entity.area_id === area_id);
+        if (device_class) {
+          filters.push(`state_obj.attributes.device_class == '${device_class}'`);
         }
 
-        if (device_id) {
-          filtered = filtered.filter((entity: any) => entity.device_id === device_id);
+        if (state) {
+          filters.push(`state_obj.state == '${state}'`);
         }
 
-        return filtered;
+        if (label) {
+          const safeLabel = label.replace(/'/g, "\\'");
+          filters.push(`'${safeLabel}' in state_attr(state_obj.entity_id, 'labels') | default([])`);
+        }
+
+        const filterCondition = filters.length > 0 ? filters.join(' and ') : 'true';
+
+        const template = `
+{%- set ns = namespace(result=[]) -%}
+{%- for state_obj in states -%}
+  {%- if ${filterCondition} -%}
+    {%- set ns.result = ns.result + [{
+      'entity_id': state_obj.entity_id,
+      'name': state_obj.name,
+      'state': state_obj.state,
+      'domain': state_obj.domain,
+      'device_class': state_obj.attributes.device_class | default(none),
+      'area': area_name(area_id(state_obj.entity_id)) | default(none),
+      'last_changed': state_obj.last_changed | string,
+      'last_updated': state_obj.last_updated | string
+    }] -%}
+  {%- endif -%}
+  {%- if ns.result | length >= ${limit} -%}
+    {%- break -%}
+  {%- endif -%}
+{%- endfor -%}
+{{ {'count': ns.result | length, 'entities': ns.result} | tojson }}
+`;
+        return await client.renderTemplate(template);
       },
     },
 
@@ -76,7 +105,7 @@ export function createConfigurationSearchTools(client: HomeAssistantClient) {
         },
       },
       handler: async ({ query, domain }: { query?: string; domain?: string } = {}) => {
-        const services = await client.get<any>('/api/services');
+        const services = await client.get<any>('/services');
 
         let results: any[] = [];
 
@@ -116,7 +145,7 @@ export function createConfigurationSearchTools(client: HomeAssistantClient) {
         },
       },
       handler: async ({ query, enabled_only }: { query?: string; enabled_only?: boolean } = {}) => {
-        const states = await client.get<any[]>('/api/states');
+        const states = await client.get<any[]>('/states');
         let automations = states.filter((state: any) => state.entity_id.startsWith('automation.'));
 
         if (enabled_only) {
@@ -145,21 +174,26 @@ export function createConfigurationSearchTools(client: HomeAssistantClient) {
 
     search_config: {
       name: 'ha_search_config',
-      description: 'Search through configuration for specific settings',
+      description: 'Get Home Assistant configuration',
       inputSchema: {
         type: 'object' as const,
         properties: {
           component: {
             type: 'string',
-            description: 'Component to check configuration for',
+            description: 'Component to check (note: component-specific checks not available via API)',
           },
         },
       },
       handler: async ({ component }: { component?: string } = {}) => {
+        const config = await client.get('/config');
         if (component) {
-          return await client.get(`/api/config/core/check_config/${component}`);
+          return {
+            component,
+            config,
+            note: 'Component-specific configuration checks are not available via REST API. Showing general config.'
+          };
         }
-        return await client.get('/api/config');
+        return config;
       },
     },
   };

@@ -14,7 +14,19 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        return await client.get<any[]>('/api/config/area_registry/list');
+        const template = `
+{%- set ns = namespace(result=[]) -%}
+{%- for area_id in areas() -%}
+  {%- set ns.result = ns.result + [{
+    'area_id': area_id,
+    'name': area_name(area_id),
+    'entity_count': area_entities(area_id) | count
+  }] -%}
+{%- endfor -%}
+{{ ns.result | tojson }}
+`;
+        const areas = await client.renderTemplate(template);
+        return Array.isArray(areas) ? areas : [];
       },
     },
 
@@ -33,7 +45,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         const data: any = { name };
         if (picture) data.picture = picture;
 
-        const result = await client.post('/api/config/area_registry/create', data);
+        const result = await client.post('/config/area_registry/create', data);
         return { success: true, ...result };
       },
     },
@@ -55,7 +67,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         if (name) data.name = name;
         if (picture) data.picture = picture;
 
-        await client.post('/api/config/area_registry/update', data);
+        await client.post('/config/area_registry/update', data);
         return { success: true, area_id };
       },
     },
@@ -71,7 +83,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         required: ['area_id'],
       },
       handler: async ({ area_id }: { area_id: string }) => {
-        await client.post('/api/config/area_registry/delete', { area_id });
+        await client.post('/config/area_registry/delete', { area_id });
         return { success: true, area_id };
       },
     },
@@ -88,7 +100,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         required: ['entity_id'],
       },
       handler: async ({ entity_id, area_id }: { entity_id: string; area_id?: string | null }) => {
-        await client.post('/api/config/entity_registry/update', {
+        await client.post('/config/entity_registry/update', {
           entity_id,
           area_id: area_id || null,
         });
@@ -105,7 +117,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         properties: {},
       },
       handler: async (_args?: {}) => {
-        const states = await client.get<any[]>('/api/states');
+        const states = await client.get<any[]>('/states');
         return states
           .filter((state: any) => state.entity_id.startsWith('zone.'))
           .map((state: any) => ({
@@ -155,7 +167,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         if (passive !== undefined) config.passive = passive;
         if (icon) config.icon = icon;
 
-        await client.post(`/api/config/zone/config/${zone_id}`, config);
+        await client.post(`/config/zone/config/${zone_id}`, config);
         return { success: true, entity_id: `zone.${zone_id}` };
       },
     },
@@ -201,7 +213,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         if (passive !== undefined) config.passive = passive;
         if (icon) config.icon = icon;
 
-        await client.post(`/api/config/zone/config/${zone_id}`, config);
+        await client.post(`/config/zone/config/${zone_id}`, config);
         return { success: true, entity_id: `zone.${zone_id}` };
       },
     },
@@ -217,7 +229,7 @@ export function createAreaZoneTools(client: HomeAssistantClient) {
         required: ['zone_id'],
       },
       handler: async ({ zone_id }: { zone_id: string }) => {
-        await client.delete(`/api/config/zone/config/${zone_id}`);
+        await client.delete(`/config/zone/config/${zone_id}`);
         return { success: true, entity_id: `zone.${zone_id}` };
       },
     },
