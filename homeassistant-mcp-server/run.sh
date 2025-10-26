@@ -35,9 +35,13 @@ else
 fi
 
 # Install dependencies and build
-echo "Installing dependencies and building..."
+echo "Installing dependencies..."
 npm install --no-audit --no-fund 2>&1 | grep -v "npm warn" || true
-npm run build 2>&1 || true
+
+echo "Building TypeScript..."
+npm run build
+
+echo "Build completed successfully!"
 
 echo "✓ MCP Server deployed to ${DEPLOY_PATH}"
 echo "  Transport: $TRANSPORT"
