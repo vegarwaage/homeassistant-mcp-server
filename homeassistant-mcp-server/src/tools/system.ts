@@ -106,17 +106,27 @@ export async function handleSystemTool(
     case 'ha_read_logs': {
       const { lines = 100, filter } = args;
 
-      let command = `tail -n ${lines} /config/home-assistant.log`;
-      if (filter) {
-        command += ` | grep "${filter}"`;
-      }
-
       try {
-        const { stdout } = await execAsync(command, {
-          maxBuffer: 10 * 1024 * 1024
-        });
+        // Read file directly to avoid command injection
+        const fileContent = await fs.readFile('/config/home-assistant.log', 'utf-8');
+        let logLines = fileContent.split('\n').filter(line => line.trim() !== '');
 
-        const logLines = stdout.trim().split('\n');
+        // Get last N lines
+        logLines = logLines.slice(-lines);
+
+        // Apply filter if provided (using regex instead of grep)
+        if (filter) {
+          try {
+            const regex = new RegExp(filter, 'i');
+            logLines = logLines.filter(line => regex.test(line));
+          } catch (regexError: any) {
+            return {
+              error: `Invalid filter regex: ${regexError.message}`,
+              lines: []
+            };
+          }
+        }
+
         return {
           lines: logLines,
           count: logLines.length,

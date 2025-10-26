@@ -5,6 +5,7 @@ import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { hasPermission, getPermissionRequest, PermissionCategory } from '../permissions.js';
+import { validatePositiveNumber } from '../validation.js';
 
 const BLOCKED_PATHS = ['/etc', '/usr', '/bin', '/sbin', '/sys', '/proc'];
 const ALLOWED_PATHS = ['/config', '/ssl', '/backup', '/share', '/media', '/addons'];
@@ -119,7 +120,11 @@ export async function handleFilesystemTool(
 
   switch (name) {
     case 'ha_read_file': {
-      const { path: filePath, max_size = 1048576, encoding = 'utf8' } = args;
+      const { path: filePath, encoding = 'utf8' } = args;
+
+      // Validate max_size parameter
+      const max_size = validatePositiveNumber(args.max_size, 'max_size', 1048576);
+
       const safety = isPathSafe(filePath);
       if (!safety.safe) {
         return { error: 'path_blocked', message: safety.reason };

@@ -4,8 +4,30 @@
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import sqlite3 from 'sqlite3';
 import { hasPermission, getPermissionRequest } from '../permissions.js';
+import { validatePositiveNumber } from '../validation.js';
 
-const DB_PATH = '/config/home-assistant_v2.db';
+const DB_PATH = process.env.HA_DB_PATH || '/config/home-assistant_v2.db';
+
+// Whitelist of known Home Assistant database tables
+const ALLOWED_TABLES = [
+  'states',
+  'states_meta',
+  'events',
+  'event_data',
+  'event_types',
+  'recorder_runs',
+  'schema_changes',
+  'statistics',
+  'statistics_meta',
+  'statistics_runs',
+  'statistics_short_term',
+  'sqlite_stat1',
+  'sqlite_stat4'
+];
+
+function isValidTableName(tableName: string): boolean {
+  return ALLOWED_TABLES.includes(tableName) || tableName.startsWith('sqlite_');
+}
 
 function openDatabase(): Promise<sqlite3.Database> {
   return new Promise((resolve, reject) => {
@@ -204,7 +226,10 @@ export async function handleDatabaseTool(
       }
 
       case 'ha_purge_database': {
-        const { keep_days, confirm } = args;
+        const { confirm } = args;
+
+        // Validate keep_days parameter
+        const keep_days = validatePositiveNumber(args.keep_days, 'keep_days');
 
         if (!confirm) {
           return { error: 'confirmation_required', message: 'Set confirm: true to execute purge operation' };
@@ -239,10 +264,12 @@ export async function handleDatabaseTool(
         `);
 
         const tableCounts = await Promise.all(
-          tables.map(async (t: any) => {
-            const count = await dbGet(`SELECT COUNT(*) as count FROM ${t.name}`);
-            return { table: t.name, rows: count.count };
-          })
+          tables
+            .filter((t: any) => isValidTableName(t.name))
+            .map(async (t: any) => {
+              const count = await dbGet(`SELECT COUNT(*) as count FROM ${t.name}`);
+              return { table: t.name, rows: count.count };
+            })
         );
 
         return {

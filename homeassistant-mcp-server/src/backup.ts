@@ -5,7 +5,7 @@ import { promises as fs } from 'fs';
 import { join, dirname, basename } from 'path';
 import { BackupMetadata } from './types.js';
 
-const BACKUP_DIR = '/config/.mcp_backups';
+const BACKUP_DIR = process.env.MCP_BACKUP_DIR || '/config/.mcp_backups';
 const MAX_BACKUPS = 5;
 
 /**

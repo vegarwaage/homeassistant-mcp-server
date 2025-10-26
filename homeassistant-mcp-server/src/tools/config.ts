@@ -7,7 +7,7 @@ import { HomeAssistantClient } from '../ha-client.js';
 import { ToolDefinition } from '../types.js';
 import { backupFile, listBackups } from '../backup.js';
 
-const CONFIG_DIR = '/config';
+const CONFIG_DIR = process.env.HA_CONFIG_DIR || '/config';
 
 /**
  * Validate that a user-provided path is within the config directory

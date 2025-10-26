@@ -8,7 +8,7 @@ import { HomeAssistantClient } from '../ha-client.js';
 import { HAAutomation, ToolDefinition } from '../types.js';
 import { backupFile } from '../backup.js';
 
-const AUTOMATIONS_FILE = '/config/automations.yaml';
+const AUTOMATIONS_FILE = process.env.HA_AUTOMATIONS_FILE || '/config/automations.yaml';
 
 async function readAutomations(): Promise<HAAutomation[]> {
   try {
