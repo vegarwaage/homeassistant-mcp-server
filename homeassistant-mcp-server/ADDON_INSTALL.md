@@ -13,6 +13,7 @@ This guide walks you through installing the MCP Server as a Home Assistant add-o
 The add-on provides:
 - **59 tools** (44 API-level + 15 root-level) for complete HA control
 - **Dual transport support**: stdio (for Claude Desktop/Code) or HTTP (for web/mobile)
+- **Auto-deployment**: Automatically deploys to `/config/mcp-server` on startup for easy GitHub updates
 - **Permission-based security**: Category-based approval for filesystem, database, and command access
 - **Safety constraints**: Automatic blocking of critical system paths
 - **Automatic configuration backups**: All config changes are backed up before modification
@@ -94,22 +95,9 @@ ssh root@homeassistant.local
 # If this works, you're ready to proceed
 ```
 
-#### 4b. Find the Add-on Container Name
+#### 4b. Configure Claude Desktop
 
-The add-on runs in a Docker container. You need to find its exact name:
-
-```bash
-# SSH into Home Assistant
-ssh root@homeassistant.local
-
-# List add-on containers
-docker ps --filter name=addon
-
-# Look for a name like: addon_a0d7b954_homeassistant-mcp-server
-# Copy this exact name
-```
-
-#### 4c. Configure Claude Desktop
+The add-on automatically deploys the MCP server to `/config/mcp-server` when it starts. You'll connect to this deployed copy (not the Docker container directly).
 
 Add the following to your Claude Desktop configuration file:
 
@@ -124,16 +112,22 @@ Add the following to your Claude Desktop configuration file:
       "command": "ssh",
       "args": [
         "root@homeassistant.local",
-        "docker exec -i addon_a0d7b954_homeassistant-mcp-server node /app/dist/index.js"
+        "cd /config/mcp-server && SUPERVISOR_TOKEN='YOUR_TOKEN_HERE' node dist/index.js"
       ]
     }
   }
 }
 ```
 
-**Important:** Replace `addon_a0d7b954_homeassistant-mcp-server` with the actual container name from step 4b.
+**Important:** Replace `YOUR_TOKEN_HERE` with your Home Assistant long-lived access token.
 
-#### 4d. Verify Connection
+To get your token:
+1. In Home Assistant: Profile (bottom left) → Long-Lived Access Tokens → Create Token
+2. Copy the token and paste it into the config above
+
+**Note:** The add-on automatically redeploys on every restart, so updates from GitHub are seamless!
+
+#### 4c. Verify Connection
 
 1. Restart Claude Desktop
 2. Open a new chat

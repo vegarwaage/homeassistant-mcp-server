@@ -49,22 +49,30 @@ See [ADDON_INSTALL.md](ADDON_INSTALL.md) for complete installation instructions 
 
 Deploy directly on your Home Assistant OS installation via SSH.
 
+**Note:** The add-on (Option 1) is recommended as it auto-deploys on updates from GitHub.
+
 ```bash
 # Build on your Mac
 npm run build
 
-# Deploy to Home Assistant
-scp -r dist/* root@homeassistant.local:/root/ha-mcp-server/dist/
+# Deploy to Home Assistant (use /config for persistence)
+scp -r dist/* root@homeassistant.local:/config/mcp-server/dist/
+scp package*.json root@homeassistant.local:/config/mcp-server/
+
+# SSH in and install dependencies
+ssh root@homeassistant.local "cd /config/mcp-server && npm install --production"
 ```
 
 ## Configuration
 
 ### stdio Transport
-For Claude Desktop and Claude Code, the server uses stdio transport over SSH:
+For Claude Desktop and Claude Code, the server uses stdio transport over SSH.
+
+When installed as an add-on, it auto-deploys to `/config/mcp-server`:
 
 ```bash
 ssh root@homeassistant.local \
-  "cd /root/ha-mcp-server && SUPERVISOR_TOKEN='your_token' node dist/index.js"
+  "cd /config/mcp-server && SUPERVISOR_TOKEN='your_token' node dist/index.js"
 ```
 
 ### HTTP Transport
