@@ -53,10 +53,14 @@ MCP (Model Context Protocol) server for integrating Home Assistant with Claude C
 
 ### Permission System
 
-Root-level tools use a category-based permission system that prompts for one-time approval per session:
-- **Filesystem**: Grants access to /config, /ssl, /backup, /share, /media, /addons (blocks /etc, /usr, /bin, /sbin, /sys, /proc)
-- **Database**: Grants access to execute SQL queries on the HA recorder database
-- **Commands**: Grants access to execute shell commands on the host system
+⚠️ **Security Notice:** Root-level tools currently **auto-grant all permissions** for single-user deployments. This is appropriate for personal home automation systems but should be reviewed before multi-user or internet-exposed deployments.
+
+Root-level tools are organized into three permission categories with safety constraints:
+- **Filesystem**: Access to /config, /ssl, /backup, /share, /media, /addons (blocks /etc, /usr, /bin, /sbin, /sys, /proc)
+- **Database**: SQL queries limited to Home Assistant recorder tables (whitelisted)
+- **Commands**: Shell command execution on the host system
+
+**Intended Use:** Single-user home automation systems where the user owns the hardware and is the sole operator.
 
 ## Installation Options
 
