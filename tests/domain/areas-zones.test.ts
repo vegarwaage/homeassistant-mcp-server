@@ -11,14 +11,15 @@ describe('Area and Zone Tools', () => {
   describe('Areas', () => {
     describe('ha_area_list', () => {
       it('should list all areas', async () => {
-        mockClient.get.mockResolvedValue([
-          { area_id: 'living_room', name: 'Living Room' },
-          { area_id: 'bedroom', name: 'Bedroom' },
+        mockClient.renderTemplate.mockResolvedValue([
+          { area_id: 'living_room', name: 'Living Room', entity_count: 5 },
+          { area_id: 'bedroom', name: 'Bedroom', entity_count: 3 },
         ]);
 
         const tools = createAreaZoneTools(mockClient as any);
         const result = await tools.area_list.handler({});
 
+        expect(mockClient.renderTemplate).toHaveBeenCalled();
         expect(result).toHaveLength(2);
         expect(result[0].area_id).toBe('living_room');
       });
@@ -31,7 +32,7 @@ describe('Area and Zone Tools', () => {
         const tools = createAreaZoneTools(mockClient as any);
         const result = await tools.area_create.handler({ name: 'Kitchen' });
 
-        expect(mockClient.post).toHaveBeenCalledWith('/api/config/area_registry/create', { name: 'Kitchen' });
+        expect(mockClient.post).toHaveBeenCalledWith('/config/area_registry/create', { name: 'Kitchen' });
         expect(result.success).toBe(true);
       });
     });
@@ -43,7 +44,7 @@ describe('Area and Zone Tools', () => {
         const tools = createAreaZoneTools(mockClient as any);
         const result = await tools.area_delete.handler({ area_id: 'old_room' });
 
-        expect(mockClient.post).toHaveBeenCalledWith('/api/config/area_registry/delete', { area_id: 'old_room' });
+        expect(mockClient.post).toHaveBeenCalledWith('/config/area_registry/delete', { area_id: 'old_room' });
         expect(result.success).toBe(true);
       });
     });

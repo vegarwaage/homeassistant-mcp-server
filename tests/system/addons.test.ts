@@ -49,7 +49,7 @@ describe('Add-on Management Tools', () => {
       const tools = createAddonTools(mockClient as any);
       const result = await tools.info.handler({ addon: 'core_mosquitto' });
 
-      expect(mockClient.get).toHaveBeenCalledWith('/api/hassio/addons/core_mosquitto/info');
+      expect(mockClient.get).toHaveBeenCalledWith('/hassio/addons/core_mosquitto/info');
       expect(result.slug).toBe('core_mosquitto');
     });
   });
@@ -61,7 +61,7 @@ describe('Add-on Management Tools', () => {
       const tools = createAddonTools(mockClient as any);
       const result = await tools.start.handler({ addon: 'core_mosquitto' });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/hassio/addons/core_mosquitto/start');
+      expect(mockClient.post).toHaveBeenCalledWith('/hassio/addons/core_mosquitto/start');
       expect(result.success).toBe(true);
     });
   });
@@ -73,7 +73,7 @@ describe('Add-on Management Tools', () => {
       const tools = createAddonTools(mockClient as any);
       const result = await tools.stop.handler({ addon: 'core_mosquitto' });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/hassio/addons/core_mosquitto/stop');
+      expect(mockClient.post).toHaveBeenCalledWith('/hassio/addons/core_mosquitto/stop');
       expect(result.success).toBe(true);
     });
   });
@@ -85,7 +85,7 @@ describe('Add-on Management Tools', () => {
       const tools = createAddonTools(mockClient as any);
       const result = await tools.restart.handler({ addon: 'core_mosquitto' });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/hassio/addons/core_mosquitto/restart');
+      expect(mockClient.post).toHaveBeenCalledWith('/hassio/addons/core_mosquitto/restart');
       expect(result.success).toBe(true);
     });
   });

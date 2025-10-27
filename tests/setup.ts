@@ -6,6 +6,7 @@ export class MockHAClient {
   public post = jest.fn();
   public delete = jest.fn();
   public patch = jest.fn();
+  public renderTemplate = jest.fn();
 }
 
 export function createMockResponse(data: any, status = 200) {

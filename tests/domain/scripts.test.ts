@@ -40,7 +40,7 @@ describe('Script Tools', () => {
       const tools = createScriptTools(mockClient as any);
       const result = await tools.execute.handler({ entity_id: 'script.morning_routine' });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/services/script/turn_on', {
+      expect(mockClient.post).toHaveBeenCalledWith('/services/script/turn_on', {
         entity_id: 'script.morning_routine',
       });
       expect(result.success).toBe(true);
@@ -55,7 +55,7 @@ describe('Script Tools', () => {
         variables: { message: 'Hello' },
       });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/services/script/turn_on', {
+      expect(mockClient.post).toHaveBeenCalledWith('/services/script/turn_on', {
         entity_id: 'script.notify',
         variables: { message: 'Hello' },
       });
@@ -69,7 +69,7 @@ describe('Script Tools', () => {
       const tools = createScriptTools(mockClient as any);
       const result = await tools.reload.handler({});
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/services/script/reload');
+      expect(mockClient.post).toHaveBeenCalledWith('/services/script/reload');
       expect(result.success).toBe(true);
     });
   });

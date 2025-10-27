@@ -7,27 +7,13 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
-
-interface OAuthClient {
-  client_id: string;
-  client_secret: string;
-  redirect_uris: string[];
-  client_id_issued_at: number;
-}
-
-interface Session {
-  access_token: string;
-  refresh_token?: string;
-  expires_at: number;
-  user_id: string;
-}
-
-// In-memory storage (for development - should use Redis/DB in production)
-const clients = new Map<string, OAuthClient>();
-const sessions = new Map<string, Session>();
-const authCodes = new Map<string, { client_id: string; redirect_uri: string; code_challenge?: string }>();
+import { SessionStorage } from './session-storage.js';
+import type { Session, OAuthClient } from './session-storage.js';
 
 export async function createHttpTransport(server: Server): Promise<void> {
+  // Initialize SQLite session storage
+  const storage = new SessionStorage();
+  await storage.initialize();
   const app = express();
   const PORT = parseInt(process.env.PORT || '3000');
   const BASE_URL = process.env.OAUTH_CLIENT_URL || `http://localhost:${PORT}`;
@@ -87,7 +73,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
   // ============================================================================
   // RFC 7591: OAuth 2.0 Dynamic Client Registration
   // ============================================================================
-  app.post('/mcp/oauth/register', (req, res) => {
+  app.post('/mcp/oauth/register', async (req, res) => {
     const { client_name, redirect_uris } = req.body;
 
     // Validate required fields
@@ -110,7 +96,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
       client_id_issued_at
     };
 
-    clients.set(client_id, client);
+    await storage.setClient(client_id, client);
 
     console.log(`[DCR] Registered client: ${client_id} (${client_name || 'unnamed'})`);
 
@@ -127,11 +113,11 @@ export async function createHttpTransport(server: Server): Promise<void> {
   // ============================================================================
 
   // Authorization endpoint - redirects to Home Assistant OAuth
-  app.get('/auth/authorize', (req, res) => {
+  app.get('/auth/authorize', async (req, res) => {
     const { client_id, redirect_uri, state, code_challenge, code_challenge_method, response_type } = req.query;
 
     // Validate client
-    const client = clients.get(client_id as string);
+    const client = await storage.getClient(client_id as string);
     if (!client) {
       return res.status(400).json({ error: 'invalid_client' });
     }
@@ -148,7 +134,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
     // Generate authorization code
     const authCode = uuidv4();
-    authCodes.set(authCode, {
+    await storage.setAuthCode(authCode, {
       client_id: client_id as string,
       redirect_uri: redirect_uri as string,
       code_challenge: code_challenge as string | undefined
@@ -175,7 +161,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
     try {
       const { authCode, originalState } = JSON.parse(stateJson as string);
-      const authData = authCodes.get(authCode);
+      const authData = await storage.getAuthCode(authCode);
 
       if (!authData) {
         return res.status(400).json({ error: 'invalid_auth_code' });
@@ -196,7 +182,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
       // Store session
       const sessionId = uuidv4();
-      sessions.set(sessionId, {
+      await storage.setSession(sessionId, {
         access_token,
         refresh_token,
         expires_at: Date.now() + (expires_in * 1000),
@@ -218,25 +204,26 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
     if (grant_type === 'authorization_code') {
       // Validate code
-      const authData = authCodes.get(code);
+      const authData = await storage.getAuthCode(code);
       if (!authData) {
         return res.status(400).json({ error: 'invalid_grant' });
       }
 
       // Validate client
-      const client = clients.get(client_id);
+      const client = await storage.getClient(client_id);
       if (!client || client.client_secret !== client_secret) {
         return res.status(401).json({ error: 'invalid_client' });
       }
 
       // Check if we have a session for this code (already authenticated with HA)
-      const session = Array.from(sessions.values()).find(s => s.user_id === 'ha_user');
+      const allSessions = await storage.getAllSessions();
+      const session = Array.from(allSessions.values()).find(s => s.user_id === 'ha_user');
       if (!session) {
         return res.status(400).json({ error: 'invalid_grant' });
       }
 
       // Delete the auth code (single use)
-      authCodes.delete(code);
+      await storage.deleteAuthCode(code);
 
       res.json({
         access_token: session.access_token,
@@ -246,42 +233,83 @@ export async function createHttpTransport(server: Server): Promise<void> {
       });
     } else if (grant_type === 'refresh_token') {
       // Find session by refresh token
-      const session = Array.from(sessions.values()).find(s => s.refresh_token === refresh_token);
-      if (!session) {
+      const result = await storage.findSessionByRefreshToken(refresh_token);
+      if (!result) {
         return res.status(400).json({ error: 'invalid_grant' });
       }
 
-      // TODO: Refresh with Home Assistant
-      res.json({
-        access_token: session.access_token,
-        token_type: 'Bearer',
-        expires_in: Math.floor((session.expires_at - Date.now()) / 1000),
-        refresh_token: session.refresh_token
-      });
+      const { sessionId, session } = result;
+
+      // Exchange refresh token with Home Assistant
+      try {
+        const tokenResponse = await axios.post(`${HA_URL}/auth/token`, new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: session.refresh_token || '',
+          client_id: BASE_URL
+        }), {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+
+        const { access_token, refresh_token: new_refresh_token, expires_in } = tokenResponse.data;
+
+        // Update session with new tokens
+        session.access_token = access_token;
+        session.refresh_token = new_refresh_token || refresh_token;
+        session.expires_at = Date.now() + (expires_in * 1000);
+
+        await storage.setSession(sessionId, session);
+
+        console.log('[OAuth] Refreshed token successfully');
+
+        res.json({
+          access_token,
+          token_type: 'Bearer',
+          expires_in,
+          refresh_token: session.refresh_token
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[OAuth] Refresh token error:', message);
+        res.status(400).json({
+          error: 'invalid_grant',
+          error_description: 'Failed to refresh token with Home Assistant'
+        });
+      }
     } else {
       res.status(400).json({ error: 'unsupported_grant_type' });
     }
   });
 
   // Token revocation
-  app.post('/auth/revoke', (req, res) => {
+  app.post('/auth/revoke', async (req, res) => {
     const { token } = req.body;
 
-    // Find and remove session
-    for (const [id, session] of sessions.entries()) {
-      if (session.access_token === token || session.refresh_token === token) {
-        sessions.delete(id);
-        console.log(`[OAuth] Revoked token for session ${id}`);
-      }
+    // Find and remove session by access token
+    const accessResult = await storage.findSessionByAccessToken(token);
+    if (accessResult) {
+      await storage.deleteSession(accessResult.sessionId);
+      console.log(`[OAuth] Revoked access token for session ${accessResult.sessionId}`);
+      return res.status(200).json({ success: true });
     }
 
+    // Find and remove session by refresh token
+    const refreshResult = await storage.findSessionByRefreshToken(token);
+    if (refreshResult) {
+      await storage.deleteSession(refreshResult.sessionId);
+      console.log(`[OAuth] Revoked refresh token for session ${refreshResult.sessionId}`);
+      return res.status(200).json({ success: true });
+    }
+
+    // Token not found, but that's OK per OAuth spec
     res.status(200).json({ success: true });
   });
 
   // ============================================================================
   // Authentication Middleware
   // ============================================================================
-  function requireAuth(req: Request, res: Response, next: NextFunction) {
+  async function requireAuth(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -295,9 +323,9 @@ export async function createHttpTransport(server: Server): Promise<void> {
     }
 
     const token = authHeader.substring(7);
-    const session = Array.from(sessions.values()).find(s => s.access_token === token);
+    const result = await storage.findSessionByAccessToken(token);
 
-    if (!session) {
+    if (!result) {
       res.setHeader('WWW-Authenticate',
         `Bearer realm="${BASE_URL}", error="invalid_token"`
       );
@@ -306,6 +334,8 @@ export async function createHttpTransport(server: Server): Promise<void> {
         error_description: 'Token not found or expired'
       });
     }
+
+    const { session } = result;
 
     // Check if token is expired
     if (session.expires_at < Date.now()) {

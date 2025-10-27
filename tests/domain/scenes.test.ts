@@ -32,7 +32,7 @@ describe('Scene Tools', () => {
       const tools = createSceneTools(mockClient as any);
       const result = await tools.activate.handler({ entity_id: 'scene.movie_time' });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/services/scene/turn_on', {
+      expect(mockClient.post).toHaveBeenCalledWith('/services/scene/turn_on', {
         entity_id: 'scene.movie_time',
       });
       expect(result.success).toBe(true);
@@ -50,7 +50,7 @@ describe('Scene Tools', () => {
         entities: ['light.bedroom', 'light.kitchen'],
       });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/services/scene/create', {
+      expect(mockClient.post).toHaveBeenCalledWith('/services/scene/create', {
         scene_id: 'my_new_scene',
         snapshot_entities: ['light.bedroom', 'light.kitchen'],
       });
@@ -66,7 +66,7 @@ describe('Scene Tools', () => {
       const tools = createSceneTools(mockClient as any);
       const result = await tools.delete.handler({ entity_id: 'scene.old_scene' });
 
-      expect(mockClient.post).toHaveBeenCalledWith('/api/services/scene/delete', {
+      expect(mockClient.post).toHaveBeenCalledWith('/services/scene/delete', {
         entity_id: 'scene.old_scene',
       });
       expect(result.success).toBe(true);

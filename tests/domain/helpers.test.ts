@@ -35,7 +35,7 @@ describe('Helper Tools', () => {
       });
 
       expect(mockClient.post).toHaveBeenCalledWith(
-        '/api/config/input_boolean/config/test_mode',
+        '/config/input_boolean/config/test_mode',
         expect.objectContaining({ name: 'Test Mode', initial: true })
       );
       expect(result.success).toBe(true);
@@ -68,7 +68,7 @@ describe('Helper Tools', () => {
         entity_id: 'input_boolean.test_mode',
       });
 
-      expect(mockClient.delete).toHaveBeenCalledWith('/api/config/input_boolean/config/test_mode');
+      expect(mockClient.delete).toHaveBeenCalledWith('/config/input_boolean/config/test_mode');
       expect(result.success).toBe(true);
     });
   });
