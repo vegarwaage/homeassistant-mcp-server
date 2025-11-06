@@ -1,8 +1,9 @@
-# Home Assistant MCP Server - Improvements Review (v2.1.0)
+# Home Assistant MCP Server - Improvements Review (v2.2.0)
 
 **Date:** 2025-11-06
 **Reviewed by:** Claude (with Vegar)
 **Status:** ✅ Complete and Ready for Deployment
+**Version:** 2.2.0 (bumped from 2.1.0 for add-on update detection)
 
 ---
 

@@ -5,9 +5,9 @@
 
 ## Overview
 
-The Home Assistant MCP server v2.1.0 provides programmatic access to Home Assistant via Claude Code's MCP (Model Context Protocol) integration with 133 tools across entity management, automation, configuration, and system control. This document addresses common issues encountered during initial setup and provides best practices learned through real-world usage.
+The Home Assistant MCP server v2.2.0 provides programmatic access to Home Assistant via Claude Code's MCP (Model Context Protocol) integration with 133 tools across entity management, automation, configuration, and system control. This document addresses common issues encountered during initial setup and provides best practices learned through real-world usage.
 
-**New in v2.1.0:**
+**New in v2.2.0:**
 - Added `ha_mcp_capabilities` tool - Call this first to understand all available features
 - Improved tool descriptions for better Claude Code understanding
 - Enhanced startup messages showing available capabilities
@@ -66,7 +66,7 @@ curl -sf http://homeassistant.local:8123/ && echo "✓ HA is reachable"
 - General searches like "uptime kuma" find nothing
 
 **Root Cause:**
-Search may not match partial strings as expected, or entity names don't contain the search term. Note: Search IS case-insensitive as of v2.1.0.
+Search may not match partial strings as expected, or entity names don't contain the search term. Note: Search IS case-insensitive (verified in v2.2.0).
 
 **Solutions:**
 
@@ -102,7 +102,7 @@ When looking for specific entities/services, search existing automation configs 
 
 ### Issue 3: Automation Creation - Understanding Persistence
 
-**Update (v2.1.0):** The `ha_create_automation` function DOES write to automations.yaml and persists correctly. Earlier versions may have had issues, but current code confirms persistence.
+**Update (v2.2.0):** The `ha_create_automation` function DOES write to automations.yaml and persists correctly. Earlier versions may have had issues, but current code confirms persistence.
 
 **How ha_create_automation Works:**
 1. Parses your YAML
@@ -357,7 +357,7 @@ All OAuth endpoints are functional and RFC-compliant. See `src/transports/http.t
 
 ## MCP Server Capabilities Reference
 
-**Total Tools:** 133 (as of v2.1.0)
+**Total Tools:** 133 (as of v2.2.0)
 
 **New Tool:**
 - `ha_mcp_capabilities` - **Call this first!** Returns comprehensive overview of all tools, usage examples, and best practices. This is your guide to understanding what the MCP server can do.
@@ -406,16 +406,16 @@ All OAuth endpoints are functional and RFC-compliant. See `src/transports/http.t
    - Always use `validate: false` via MCP
    - Config is validated when you reload it
 
-**Previously Documented Issues (Now Fixed in v2.1.0):**
-- ~~`ha_create_automation` creates non-persistent automations~~ - **FIXED**: Now persists correctly to automations.yaml
-- ~~Search is case-sensitive~~ - **FIXED**: Search has always been case-insensitive
+**Previously Documented Issues (Now Fixed in v2.2.0):**
+- ~~`ha_create_automation` creates non-persistent automations~~ - **FIXED**: Code review confirms it persists correctly to automations.yaml
+- ~~Search is case-sensitive~~ - **FIXED**: Code review confirms search has always been case-insensitive
 
 ## Session Context for Claude Code
 
 When starting a new Claude Code session that needs Home Assistant access, include this context:
 
 ```markdown
-**Home Assistant MCP Server v2.1.0**
+**Home Assistant MCP Server v2.2.0**
 - Total Tools: 133 across entity control, automation, config, monitoring, and system
 - **First Step:** Call ha_mcp_capabilities() to see all available tools and usage guide
 

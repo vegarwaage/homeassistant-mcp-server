@@ -25,8 +25,8 @@ export function registerHelpTools(): ToolDefinition[] {
         const capabilities = {
           server_info: {
             name: 'Home Assistant MCP Server',
-            version: '2.1.0',
-            total_tools: 132,
+            version: '2.2.0',
+            total_tools: 133,
             transport: process.env.TRANSPORT || 'stdio',
             description: 'Full-featured MCP server for Home Assistant with 132 tools across entity management, automation, configuration, and system control'
           },

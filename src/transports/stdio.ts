@@ -11,7 +11,7 @@ export async function createStdioTransport(server: Server): Promise<void> {
   // Log startup information to stderr (visible in MCP server logs)
   console.error('');
   console.error('='.repeat(70));
-  console.error('  Home Assistant MCP Server v2.1.0');
+  console.error('  Home Assistant MCP Server v2.2.0');
   console.error('='.repeat(70));
   console.error('  Transport: stdio (SSH)');
   console.error('  Total Tools: 133 (including ha_mcp_capabilities help tool)');
