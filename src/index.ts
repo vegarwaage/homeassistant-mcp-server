@@ -47,6 +47,7 @@ import { registerCalendarsTools } from './tools/calendars.js';
 import { registerLogbookTools } from './tools/logbook.js';
 import { registerBlueprintsTools } from './tools/blueprints.js';
 import { registerNotificationsTools } from './tools/notifications.js';
+import { registerHelpTools } from './tools/help.js';
 import { createStdioTransport, createHttpTransport } from './transports/index.js';
 import { initSession, grantPermission } from './permissions.js';
 import { filesystemTools, handleFilesystemTool } from './tools/filesystem.js';
@@ -89,7 +90,7 @@ class HAMCPServer {
     this.server = new Server(
       {
         name: 'homeassistant-mcp-server',
-        version: '2.0.4',
+        version: '2.1.0',
       },
       {
         capabilities: {
@@ -258,6 +259,7 @@ class HAMCPServer {
 
     // Register legacy API-level tool categories
     const legacyTools = [
+      ...registerHelpTools(),
       ...registerStateTools(),
       ...registerConfigTools(),
       ...registerAutomationTools(),

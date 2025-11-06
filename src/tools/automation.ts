@@ -29,11 +29,11 @@ export function registerAutomationTools(): ToolDefinition[] {
   return [
     {
       name: 'ha_create_automation',
-      description: 'Create a new automation in automations.yaml',
+      description: 'Create a new persistent automation that will be saved to automations.yaml file. The automation will survive Home Assistant restarts. Provide complete YAML definition with trigger, condition (optional), and action sections. Use this to create automations for turning lights on at sunset, sending notifications when sensors trigger, or any other home automation logic. The automation is automatically validated and reloaded.',
       inputSchema: {
         type: 'object',
         properties: {
-          automation_yaml: { type: 'string', description: 'YAML definition of the automation' }
+          automation_yaml: { type: 'string', description: 'Complete YAML definition with trigger, action, and optional condition. Example: "alias: My Automation\ntrigger:\n  - platform: state\n    entity_id: sensor.motion\naction:\n  - service: light.turn_on\n    entity_id: light.hall"' }
         },
         required: ['automation_yaml']
       },
@@ -194,7 +194,7 @@ export function registerAutomationTools(): ToolDefinition[] {
     },
     {
       name: 'ha_list_automations',
-      description: 'List all automations with their IDs and aliases',
+      description: 'List all configured automations showing their IDs, names (aliases), descriptions, and modes. Use this to discover existing automations, find automation IDs for updates/deletes, or see what automation logic is already configured in the system.',
       inputSchema: {
         type: 'object',
         properties: {}

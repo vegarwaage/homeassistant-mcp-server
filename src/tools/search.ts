@@ -8,13 +8,13 @@ export function registerSearchTools(): ToolDefinition[] {
   return [
     {
       name: 'ha_search_entities',
-      description: 'Search entities by name, device class, domain, state, area, or label',
+      description: 'Search and filter Home Assistant entities with fuzzy matching. Use this to find entities when you know part of the name (case-insensitive search in entity_id and friendly_name), filter by device type (device_class like "motion", "door", "temperature"), find entities in specific rooms (area), or filter by current state ("on", "off", "home"). Best practice: start with domain filter (e.g., domain="sensor") to narrow results, then use query for specific matching.',
       inputSchema: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'Fuzzy search in entity_id and friendly_name (case-insensitive)'
+            description: 'Case-insensitive fuzzy search string to match against entity_id and friendly_name (e.g., "bedroom light", "temp", "motion")'
           },
           device_class: {
             type: 'string',
@@ -109,14 +109,14 @@ export function registerSearchTools(): ToolDefinition[] {
     },
     {
       name: 'ha_get_stats',
-      description: 'Get entity count statistics grouped by domain, device_class, area, or label',
+      description: 'Get overview statistics of Home Assistant entities grouped by domain, device_class, area, or label. Use this to understand the system: see how many lights/sensors/switches exist (domain), what types of sensors are configured (device_class), or get a count of entities by room (area). Useful for getting a high-level understanding of the Home Assistant setup.',
       inputSchema: {
         type: 'object',
         properties: {
           group_by: {
             type: 'string',
             enum: ['domain', 'device_class', 'area', 'label'],
-            description: 'How to group entities for counting'
+            description: 'Grouping method: "domain" for entity types (light, sensor, switch), "device_class" for sensor types (temperature, motion, door), "area" for room counts, "label" for tag counts'
           }
         },
         required: ['group_by']

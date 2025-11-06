@@ -29,11 +29,11 @@ export function registerConfigTools(): ToolDefinition[] {
   return [
     {
       name: 'ha_read_config',
-      description: 'Read any configuration file from /config directory',
+      description: 'Read Home Assistant configuration files from /config directory. Use this to view automations.yaml, scripts.yaml, configuration.yaml, secrets.yaml, or any other YAML/JSON config file. Essential for understanding existing automations before creating new ones, checking current configuration, or troubleshooting. Returns file content as text.',
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Relative path from /config (e.g., "automations.yaml")' }
+          path: { type: 'string', description: 'Relative path from /config directory (e.g., "automations.yaml", "scripts.yaml", "configuration.yaml", "customize.yaml")' }
         },
         required: ['path']
       },
@@ -56,13 +56,13 @@ export function registerConfigTools(): ToolDefinition[] {
     },
     {
       name: 'ha_write_config',
-      description: 'Write or update configuration file (automatically backs up)',
+      description: 'Write or update Home Assistant configuration files. Automatically creates a backup before writing. Use this to save modified automations.yaml, update scripts, or edit other config files. IMPORTANT: For MCP usage, always set validate=false as validation requires Supervisor API access. The config will be validated when you reload it. Backup is automatically created for safe rollback.',
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Relative path from /config' },
-          content: { type: 'string', description: 'File content to write' },
-          validate: { type: 'boolean', description: 'Validate config after write (default: true)' }
+          path: { type: 'string', description: 'Relative path from /config (e.g., "automations.yaml", "scripts.yaml")' },
+          content: { type: 'string', description: 'Complete file content to write (usually YAML format)' },
+          validate: { type: 'boolean', description: 'Validate after write - set to false for MCP usage (default: true, but use false via MCP)' }
         },
         required: ['path', 'content']
       },
