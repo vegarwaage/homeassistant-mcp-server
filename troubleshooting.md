@@ -5,9 +5,16 @@
 
 ## Overview
 
-The Home Assistant MCP server v2.2.0 provides programmatic access to Home Assistant via Claude Code's MCP (Model Context Protocol) integration with 133 tools across entity management, automation, configuration, and system control. This document addresses common issues encountered during initial setup and provides best practices learned through real-world usage.
+The Home Assistant MCP server v2.3.0 provides programmatic access to Home Assistant via Claude Code's MCP (Model Context Protocol) integration with 133 tools across entity management, automation, configuration, and system control. This document addresses common issues encountered during initial setup and provides best practices learned through real-world usage.
 
-**New in v2.2.0:**
+**New in v2.3.0:**
+- ✅ Production-ready OAuth 2.1 implementation for Claude.ai and mobile access
+- Implements March 26, 2025 OAuth specification (RFC 8414, RFC 9728, RFC 7591)
+- Token wrapping security: Opaque tokens to clients, HA tokens server-side only
+- SQLite session persistence with automatic cleanup
+- HEAD endpoint with MCP-Protocol-Version: 2025-03-26 header
+
+**Previous (v2.2.0):**
 - Added `ha_mcp_capabilities` tool - Call this first to understand all available features
 - Improved tool descriptions for better Claude Code understanding
 - Enhanced startup messages showing available capabilities
@@ -32,7 +39,7 @@ Before starting any HA-related work in a new Claude Code session, verify:
 - Tools prefixed with `mcp__homeassistant__` don't appear
 
 **For Web/Mobile (OAuth):**
-OAuth implementation is complete and RFC-compliant, but currently **blocked by Anthropic's OAuth proxy**. This is an external issue on Anthropic's side. The server is ready - when they fix their OAuth proxy, it will work immediately. See "OAuth Status" section below for details.
+OAuth 2.1 implementation is production-ready as of v2.3.0. See "OAuth Setup" section below for configuration instructions. The server implements the March 26, 2025 MCP OAuth specification with full RFC compliance.
 
 **For Claude Code/Desktop (stdio over SSH):**
 
@@ -328,36 +335,128 @@ ha_list_automations()  // Confirm it appears
 // "CLI command failed" = Use validate: false
 ```
 
-## OAuth Status (Web/Mobile Access)
+## OAuth Setup (Web/Mobile Access)
 
-**Current Status:** ✅ **Implementation Complete** | ⛔ **Blocked by Anthropic**
+**Current Status:** ✅ **Production-Ready** (v2.3.0+)
 
-The HTTP transport with OAuth 2.1 is **fully implemented and RFC-compliant**:
-- ✅ RFC 8414 (Authorization Server Metadata)
-- ✅ RFC 9728 (Protected Resource Metadata)
-- ✅ RFC 7591 (Dynamic Client Registration)
-- ✅ Token refresh flow
-- ✅ SQLite session persistence
-- ✅ SSE (Server-Sent Events) transport
-- ✅ Production-ready security
+The HTTP transport with OAuth 2.1 is fully implemented and RFC-compliant:
 
-**The Blocker:**
-Anthropic's OAuth proxy for Claude.ai/mobile returns `step=start_error` for all MCP servers. This is **their bug, not ours**. Our server is tested and ready.
+### Specification Compliance
+- ✅ **March 26, 2025 OAuth 2.1 spec** for MCP servers
+- ✅ **RFC 8414**: Authorization Server Metadata (`.well-known/oauth-authorization-server`)
+- ✅ **RFC 9728**: Protected Resource Metadata (`.well-known/oauth-protected-resource/mcp`)
+- ✅ **RFC 7591**: Dynamic Client Registration (`/mcp/oauth/register`)
+- ✅ **HEAD endpoint**: Returns `MCP-Protocol-Version: 2025-03-26` header
+- ✅ **Token wrapping**: Opaque tokens to clients, HA tokens server-side only
+- ✅ **Session persistence**: SQLite database survives server restarts
+- ✅ **Token refresh**: Automatic refresh with new opaque tokens, old tokens revoked
 
-**When Will It Work:**
-As soon as Anthropic fixes their OAuth proxy, web and mobile clients will be able to connect immediately. No changes needed on our side.
+### Security Architecture
 
-**Testing:**
-The HTTP transport can be tested independently:
+**Token Wrapping Pattern:**
+1. Client (Claude.ai) receives cryptographically secure opaque tokens
+2. Server stores Home Assistant access/refresh tokens in SQLite
+3. On API calls, server exchanges opaque token for HA token internally
+4. HA tokens never leave the server, can't be extracted from clients
+
+**Session Storage:**
+- Location: `/config/mcp-sessions.db` (SQLite)
+- Tables: sessions, opaque_tokens, auth_codes, oauth_clients
+- Automatic cleanup of expired tokens on startup
+
+### Configuration Steps
+
+**1. Set Environment Variables:**
+```bash
+TRANSPORT=http
+PORT=3000
+OAUTH_CLIENT_URL=https://your-public-url.com
+SUPERVISOR_TOKEN=your_ha_supervisor_token
+```
+
+**2. Expose Server with HTTPS:**
+Use a reverse proxy or tunnel service:
+- Nginx reverse proxy
+- Cloudflare Tunnel
+- Tailscale Funnel
+- Ngrok (for testing)
+
+The server MUST be accessible via HTTPS for Claude.ai OAuth to work.
+
+**3. Add to Claude.ai:**
+- Go to Claude.ai → Settings → MCP Servers
+- Add server URL: `https://your-public-url.com`
+- Claude.ai auto-discovers OAuth endpoints via `.well-known/oauth-authorization-server`
+- Follow OAuth flow:
+  1. Claude.ai registers as OAuth client via Dynamic Client Registration
+  2. Redirects to `/auth/authorize`
+  3. Server redirects to Home Assistant OAuth
+  4. User authorizes in Home Assistant
+  5. Server exchanges HA token for session, issues opaque tokens
+  6. Claude.ai connects to `/mcp` with Bearer token
+
+### OAuth Endpoints
+
+When `TRANSPORT=http`, the following endpoints are available:
+
+- `HEAD /` or `HEAD /mcp` - Returns protocol version header
+- `GET /.well-known/oauth-authorization-server` - OAuth server metadata
+- `GET /.well-known/oauth-protected-resource/mcp` - Resource metadata
+- `POST /mcp/oauth/register` - Dynamic client registration
+- `GET /auth/authorize` - Authorization endpoint (redirects to HA)
+- `GET /auth/callback` - HA OAuth callback
+- `POST /auth/token` - Token issuance/refresh
+- `POST /auth/revoke` - Token revocation
+- `GET /mcp` - SSE endpoint for MCP protocol (requires Bearer token)
+- `POST /mcp` - Message endpoint for SSE transport
+
+### Testing OAuth Locally
+
+**Start the server:**
 ```bash
 TRANSPORT=http PORT=3000 OAUTH_CLIENT_URL=https://your-domain.com node dist/index.js
 ```
 
-All OAuth endpoints are functional and RFC-compliant. See `src/transports/http.ts` for implementation details.
+**Test discovery endpoints:**
+```bash
+# Check protocol version header
+curl -I https://your-domain.com/
+
+# Check OAuth metadata
+curl https://your-domain.com/.well-known/oauth-authorization-server
+
+# Check resource metadata
+curl https://your-domain.com/.well-known/oauth-protected-resource/mcp
+```
+
+**Full OAuth flow testing requires:**
+- Publicly accessible HTTPS URL
+- Claude.ai client to initiate OAuth flow
+- Or manual OAuth flow with `curl` for testing
+
+### Troubleshooting OAuth
+
+**Issue: Claude.ai can't connect**
+- Verify server is accessible via HTTPS
+- Check `HEAD /` returns `MCP-Protocol-Version: 2025-03-26`
+- Verify `.well-known` endpoints return valid JSON
+- Check logs for OAuth errors
+
+**Issue: Authentication fails**
+- Ensure `SUPERVISOR_TOKEN` is valid
+- Check Home Assistant OAuth is working (try manually at `http://ha-url/auth/authorize`)
+- Verify SQLite database is writable at `/config/mcp-sessions.db`
+
+**Issue: Tokens expire immediately**
+- Check system clock is correct on both server and Home Assistant
+- Verify HA token refresh is working
+- Check SQLite session storage for expired tokens
+
+For implementation details, see `src/transports/http.ts` and `src/transports/session-storage.ts`.
 
 ## MCP Server Capabilities Reference
 
-**Total Tools:** 133 (as of v2.2.0)
+**Total Tools:** 133 (as of v2.3.0)
 
 **New Tool:**
 - `ha_mcp_capabilities` - **Call this first!** Returns comprehensive overview of all tools, usage examples, and best practices. This is your guide to understanding what the MCP server can do.
@@ -415,8 +514,9 @@ All OAuth endpoints are functional and RFC-compliant. See `src/transports/http.t
 When starting a new Claude Code session that needs Home Assistant access, include this context:
 
 ```markdown
-**Home Assistant MCP Server v2.2.0**
+**Home Assistant MCP Server v2.3.0**
 - Total Tools: 133 across entity control, automation, config, monitoring, and system
+- **OAuth:** Production-ready for Claude.ai and mobile (March 26, 2025 spec)
 - **First Step:** Call ha_mcp_capabilities() to see all available tools and usage guide
 
 **Connection:**
@@ -611,8 +711,15 @@ const working = ha_read_config({ path: "automations.yaml" })
 
 ## Revision History
 
-- **2025-11-06:** Initial version based on resilience system implementation
+- **2025-11-06 (v2.3.0):** OAuth 2.1 production release
+  - Implemented March 26, 2025 OAuth specification
+  - Added token wrapping security architecture
+  - SQLite session persistence with automatic cleanup
+  - Updated documentation with OAuth setup instructions
+
+- **2025-11-06 (v2.2.0):** Initial version based on resilience system implementation
   - Documented automation creation issues
   - Added notification device action patterns
   - Captured entity/service discovery best practices
   - Recorded config validation workarounds
+  - Added ha_mcp_capabilities tool

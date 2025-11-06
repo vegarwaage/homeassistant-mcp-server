@@ -43,6 +43,19 @@ export async function createHttpTransport(server: Server): Promise<void> {
   });
 
   // ============================================================================
+  // MCP Protocol Version - Required for Claude compatibility
+  // ============================================================================
+  app.head('/', (req, res) => {
+    res.setHeader('MCP-Protocol-Version', '2025-03-26');
+    res.status(200).end();
+  });
+
+  app.head('/mcp', (req, res) => {
+    res.setHeader('MCP-Protocol-Version', '2025-03-26');
+    res.status(200).end();
+  });
+
+  // ============================================================================
   // RFC 8414: OAuth 2.0 Authorization Server Metadata
   // ============================================================================
   app.get('/.well-known/oauth-authorization-server', (req, res) => {
@@ -180,7 +193,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
       const { access_token, refresh_token, expires_in } = tokenResponse.data;
 
-      // Store session
+      // Store session with HA tokens
       const sessionId = uuidv4();
       await storage.setSession(sessionId, {
         access_token,
@@ -188,6 +201,14 @@ export async function createHttpTransport(server: Server): Promise<void> {
         expires_at: Date.now() + (expires_in * 1000),
         user_id: 'ha_user'
       });
+
+      // Link session to auth code
+      await storage.setAuthCode(authCode, {
+        ...authData,
+        session_id: sessionId
+      });
+
+      console.log(`[OAuth] Linked session ${sessionId} to auth code`);
 
       // Redirect back to client with our auth code
       const redirectUrl = `${authData.redirect_uri}?code=${authCode}&state=${originalState}`;
@@ -215,32 +236,47 @@ export async function createHttpTransport(server: Server): Promise<void> {
         return res.status(401).json({ error: 'invalid_client' });
       }
 
-      // Check if we have a session for this code (already authenticated with HA)
-      const allSessions = await storage.getAllSessions();
-      const session = Array.from(allSessions.values()).find(s => s.user_id === 'ha_user');
+      // Get session linked to this auth code
+      if (!authData.session_id) {
+        return res.status(400).json({ error: 'invalid_grant', error_description: 'Auth code not linked to session' });
+      }
+
+      const session = await storage.getSession(authData.session_id);
       if (!session) {
-        return res.status(400).json({ error: 'invalid_grant' });
+        return res.status(400).json({ error: 'invalid_grant', error_description: 'Session not found' });
       }
 
       // Delete the auth code (single use)
       await storage.deleteAuthCode(code);
 
+      // Issue opaque tokens (token wrapping - keeps HA tokens server-side)
+      const opaqueAccessToken = await storage.createOpaqueToken(
+        authData.session_id,
+        session.expires_at
+      );
+      const opaqueRefreshToken = await storage.createOpaqueToken(
+        authData.session_id,
+        Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
+      );
+
+      console.log(`[OAuth] Issued opaque tokens for session ${authData.session_id}`);
+
       res.json({
-        access_token: session.access_token,
+        access_token: opaqueAccessToken,
         token_type: 'Bearer',
         expires_in: Math.floor((session.expires_at - Date.now()) / 1000),
-        refresh_token: session.refresh_token
+        refresh_token: opaqueRefreshToken
       });
     } else if (grant_type === 'refresh_token') {
-      // Find session by refresh token
-      const result = await storage.findSessionByRefreshToken(refresh_token);
+      // Find session by opaque refresh token
+      const result = await storage.getSessionByOpaqueToken(refresh_token);
       if (!result) {
-        return res.status(400).json({ error: 'invalid_grant' });
+        return res.status(400).json({ error: 'invalid_grant', error_description: 'Invalid refresh token' });
       }
 
       const { sessionId, session } = result;
 
-      // Exchange refresh token with Home Assistant
+      // Exchange HA refresh token with Home Assistant
       try {
         const tokenResponse = await axios.post(`${HA_URL}/auth/token`, new URLSearchParams({
           grant_type: 'refresh_token',
@@ -254,20 +290,33 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
         const { access_token, refresh_token: new_refresh_token, expires_in } = tokenResponse.data;
 
-        // Update session with new tokens
+        // Update session with new HA tokens
         session.access_token = access_token;
-        session.refresh_token = new_refresh_token || refresh_token;
+        session.refresh_token = new_refresh_token || session.refresh_token;
         session.expires_at = Date.now() + (expires_in * 1000);
 
         await storage.setSession(sessionId, session);
 
-        console.log('[OAuth] Refreshed token successfully');
+        // Issue NEW opaque tokens (don't reuse old ones)
+        const newOpaqueAccessToken = await storage.createOpaqueToken(
+          sessionId,
+          session.expires_at
+        );
+        const newOpaqueRefreshToken = await storage.createOpaqueToken(
+          sessionId,
+          Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
+        );
+
+        // Revoke the old refresh token
+        await storage.revokeOpaqueToken(refresh_token);
+
+        console.log(`[OAuth] Refreshed tokens for session ${sessionId}`);
 
         res.json({
-          access_token,
+          access_token: newOpaqueAccessToken,
           token_type: 'Bearer',
           expires_in,
-          refresh_token: session.refresh_token
+          refresh_token: newOpaqueRefreshToken
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -286,19 +335,11 @@ export async function createHttpTransport(server: Server): Promise<void> {
   app.post('/auth/revoke', async (req, res) => {
     const { token } = req.body;
 
-    // Find and remove session by access token
-    const accessResult = await storage.findSessionByAccessToken(token);
-    if (accessResult) {
-      await storage.deleteSession(accessResult.sessionId);
-      console.log(`[OAuth] Revoked access token for session ${accessResult.sessionId}`);
-      return res.status(200).json({ success: true });
-    }
-
-    // Find and remove session by refresh token
-    const refreshResult = await storage.findSessionByRefreshToken(token);
-    if (refreshResult) {
-      await storage.deleteSession(refreshResult.sessionId);
-      console.log(`[OAuth] Revoked refresh token for session ${refreshResult.sessionId}`);
+    // Find and remove opaque token
+    const result = await storage.getSessionByOpaqueToken(token);
+    if (result) {
+      await storage.revokeOpaqueToken(token);
+      console.log(`[OAuth] Revoked opaque token for session ${result.sessionId}`);
       return res.status(200).json({ success: true });
     }
 
@@ -322,8 +363,8 @@ export async function createHttpTransport(server: Server): Promise<void> {
       });
     }
 
-    const token = authHeader.substring(7);
-    const result = await storage.findSessionByAccessToken(token);
+    const opaqueToken = authHeader.substring(7);
+    const result = await storage.getSessionByOpaqueToken(opaqueToken);
 
     if (!result) {
       res.setHeader('WWW-Authenticate',
@@ -337,18 +378,18 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
     const { session } = result;
 
-    // Check if token is expired
+    // Check if HA token is expired
     if (session.expires_at < Date.now()) {
       res.setHeader('WWW-Authenticate',
         `Bearer realm="${BASE_URL}", error="invalid_token", error_description="Token expired"`
       );
       return res.status(401).json({
         error: 'invalid_token',
-        error_description: 'Token expired'
+        error_description: 'Token expired - use refresh_token to get new tokens'
       });
     }
 
-    // Attach session to request
+    // Attach session to request (contains HA's access token for API calls)
     (req as any).session = session;
     next();
   }

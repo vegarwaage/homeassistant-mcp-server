@@ -4,7 +4,7 @@ MCP (Model Context Protocol) server for integrating Home Assistant with Claude C
 
 ## About
 
-**Version 2.0.0** introduces a comprehensive layered architecture with **132 total tools** - 73 new API-level tools organized in domain/system/advanced layers, plus 44 legacy API tools and 15 root-level tools.
+**Version 2.3.0** introduces production-ready OAuth 2.1 support for Claude.ai and mobile access, with **133 total tools** - 73 API-level tools in domain/system/advanced layers, 45 legacy API tools (including ha_mcp_capabilities), and 15 root-level tools.
 
 ### V2.0.0 Layered Architecture (73 new tools)
 
@@ -98,15 +98,76 @@ ssh root@homeassistant.local \
   "cd /config/mcp-server && SUPERVISOR_TOKEN='your_token' node dist/index.js"
 ```
 
-### HTTP Transport
-For web and mobile clients, the server supports HTTP transport with OAuth 2.1:
+### HTTP Transport with OAuth 2.1
 
-```bash
-TRANSPORT=http PORT=3000 OAUTH_CLIENT_URL=https://your-ha-url.com node dist/index.js
-```
+**Version 2.3.0** introduces production-ready OAuth 2.1 support for Claude.ai and mobile clients.
+
+#### OAuth Implementation Details
+
+This server implements the **March 26, 2025 OAuth 2.1 specification** for MCP servers:
+
+- **RFC 8414**: OAuth 2.0 Authorization Server Metadata (`.well-known/oauth-authorization-server`)
+- **RFC 9728**: OAuth 2.0 Protected Resource Metadata (`.well-known/oauth-protected-resource/mcp`)
+- **RFC 7591**: Dynamic Client Registration (`/mcp/oauth/register`)
+- **Protocol Version**: `MCP-Protocol-Version: 2025-03-26` header on HEAD requests
+
+#### Security Architecture: Token Wrapping
+
+The server uses **token wrapping** to protect Home Assistant credentials:
+
+1. **Client receives**: Opaque tokens (cryptographically secure random strings)
+2. **Server stores**: Home Assistant access/refresh tokens in SQLite (`/config/mcp-sessions.db`)
+3. **Token lifecycle**: New opaque tokens issued on refresh, old tokens revoked
+4. **Session persistence**: Survives server restarts via SQLite storage
+
+This ensures Home Assistant tokens never leave the server and cannot be extracted from clients.
+
+#### Setup for Claude.ai
+
+1. **Configure Environment Variables**:
+   ```bash
+   TRANSPORT=http
+   PORT=3000
+   OAUTH_CLIENT_URL=https://your-public-url.com
+   SUPERVISOR_TOKEN=your_ha_supervisor_token
+   ```
+
+2. **Expose Server**: Use a reverse proxy (nginx, Cloudflare Tunnel) to expose the server with HTTPS
+
+3. **Add to Claude.ai**:
+   - Go to Claude.ai MCP settings
+   - Add server URL: `https://your-public-url.com`
+   - Claude.ai will discover OAuth endpoints via `.well-known/oauth-authorization-server`
+   - Follow OAuth flow to authenticate
+
+#### OAuth Endpoints
+
+When TRANSPORT=http, the server exposes:
+
+- **Discovery**: `/.well-known/oauth-authorization-server`
+- **Resource Metadata**: `/.well-known/oauth-protected-resource/mcp`
+- **Dynamic Registration**: `/mcp/oauth/register`
+- **Authorization**: `/auth/authorize` (redirects to Home Assistant)
+- **Token**: `/auth/token` (issues opaque access/refresh tokens)
+- **Revocation**: `/auth/revoke`
+- **MCP SSE Endpoint**: `/mcp` (requires Bearer token)
+
+#### Session Storage
+
+Sessions are persisted to `/config/mcp-sessions.db` (SQLite) with:
+
+- **sessions**: Home Assistant access/refresh tokens linked to session IDs
+- **opaque_tokens**: Client tokens mapped to sessions
+- **auth_codes**: Authorization codes linked to sessions
+- **oauth_clients**: Dynamically registered OAuth clients
+
+Sessions survive server restarts and include automatic cleanup of expired tokens.
 
 ### Authentication
-Requires a Home Assistant long-lived access token set as `SUPERVISOR_TOKEN` environment variable.
+
+**stdio transport**: Requires Home Assistant long-lived access token set as `SUPERVISOR_TOKEN` environment variable.
+
+**http transport**: Uses OAuth 2.1 flow to obtain tokens from Home Assistant, then issues opaque tokens to clients.
 
 ## Available Tools
 
