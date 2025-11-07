@@ -9,6 +9,7 @@ export interface Session {
   refresh_token?: string;  // HA's refresh token (stored server-side only)
   expires_at: number;
   user_id: string;
+  audience?: string;  // RFC 8707: Resource identifier this session is authorized for
 }
 
 export interface OpaqueToken {
@@ -29,6 +30,7 @@ export interface AuthCode {
   redirect_uri: string;
   code_challenge?: string;
   session_id?: string;  // Link to the session created after HA OAuth
+  resource?: string;  // RFC 8707: Resource indicator for token audience
 }
 
 export class SessionStorage {
@@ -52,6 +54,7 @@ export class SessionStorage {
         refresh_token TEXT,
         expires_at INTEGER NOT NULL,
         user_id TEXT NOT NULL,
+        audience TEXT,
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
       )
     `);
@@ -72,6 +75,7 @@ export class SessionStorage {
         redirect_uri TEXT NOT NULL,
         code_challenge TEXT,
         session_id TEXT,
+        resource TEXT,
         created_at INTEGER DEFAULT (strftime('%s', 'now')),
         expires_at INTEGER NOT NULL
       )
@@ -109,19 +113,20 @@ export class SessionStorage {
   // Session methods
   async setSession(sessionId: string, session: Session): Promise<void> {
     await this.dbRun(
-      `INSERT OR REPLACE INTO sessions (session_id, access_token, refresh_token, expires_at, user_id)
-       VALUES (?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO sessions (session_id, access_token, refresh_token, expires_at, user_id, audience)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       sessionId,
       session.access_token,
       session.refresh_token || null,
       session.expires_at,
-      session.user_id
+      session.user_id,
+      session.audience || null
     );
   }
 
   async getSession(sessionId: string): Promise<Session | null> {
     const row = await this.dbGet(
-      'SELECT access_token, refresh_token, expires_at, user_id FROM sessions WHERE session_id = ?',
+      'SELECT access_token, refresh_token, expires_at, user_id, audience FROM sessions WHERE session_id = ?',
       sessionId
     );
 
@@ -131,12 +136,13 @@ export class SessionStorage {
       access_token: row.access_token,
       refresh_token: row.refresh_token,
       expires_at: row.expires_at,
-      user_id: row.user_id
+      user_id: row.user_id,
+      audience: row.audience
     };
   }
 
   async getAllSessions(): Promise<Map<string, Session>> {
-    const rows = await this.dbAll('SELECT session_id, access_token, refresh_token, expires_at, user_id FROM sessions');
+    const rows = await this.dbAll('SELECT session_id, access_token, refresh_token, expires_at, user_id, audience FROM sessions');
     const sessions = new Map<string, Session>();
 
     for (const row of rows) {
@@ -144,7 +150,8 @@ export class SessionStorage {
         access_token: row.access_token,
         refresh_token: row.refresh_token,
         expires_at: row.expires_at,
-        user_id: row.user_id
+        user_id: row.user_id,
+        audience: row.audience
       });
     }
 
@@ -157,7 +164,7 @@ export class SessionStorage {
 
   async findSessionByRefreshToken(refreshToken: string): Promise<{ sessionId: string; session: Session } | null> {
     const row = await this.dbGet(
-      'SELECT session_id, access_token, refresh_token, expires_at, user_id FROM sessions WHERE refresh_token = ?',
+      'SELECT session_id, access_token, refresh_token, expires_at, user_id, audience FROM sessions WHERE refresh_token = ?',
       refreshToken
     );
 
@@ -169,14 +176,15 @@ export class SessionStorage {
         access_token: row.access_token,
         refresh_token: row.refresh_token,
         expires_at: row.expires_at,
-        user_id: row.user_id
+        user_id: row.user_id,
+        audience: row.audience
       }
     };
   }
 
   async findSessionByAccessToken(accessToken: string): Promise<{ sessionId: string; session: Session } | null> {
     const row = await this.dbGet(
-      'SELECT session_id, access_token, refresh_token, expires_at, user_id FROM sessions WHERE access_token = ?',
+      'SELECT session_id, access_token, refresh_token, expires_at, user_id, audience FROM sessions WHERE access_token = ?',
       accessToken
     );
 
@@ -188,7 +196,8 @@ export class SessionStorage {
         access_token: row.access_token,
         refresh_token: row.refresh_token,
         expires_at: row.expires_at,
-        user_id: row.user_id
+        user_id: row.user_id,
+        audience: row.audience
       }
     };
   }
@@ -225,20 +234,21 @@ export class SessionStorage {
   async setAuthCode(code: string, authCode: AuthCode, expiresIn: number = 600): Promise<void> {
     const expiresAt = Date.now() + (expiresIn * 1000);
     await this.dbRun(
-      `INSERT OR REPLACE INTO auth_codes (code, client_id, redirect_uri, code_challenge, session_id, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT OR REPLACE INTO auth_codes (code, client_id, redirect_uri, code_challenge, session_id, resource, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       code,
       authCode.client_id,
       authCode.redirect_uri,
       authCode.code_challenge || null,
       authCode.session_id || null,
+      authCode.resource || null,
       expiresAt
     );
   }
 
   async getAuthCode(code: string): Promise<AuthCode | null> {
     const row = await this.dbGet(
-      'SELECT client_id, redirect_uri, code_challenge, session_id FROM auth_codes WHERE code = ? AND expires_at > ?',
+      'SELECT client_id, redirect_uri, code_challenge, session_id, resource FROM auth_codes WHERE code = ? AND expires_at > ?',
       code,
       Date.now()
     );
@@ -249,7 +259,8 @@ export class SessionStorage {
       client_id: row.client_id,
       redirect_uri: row.redirect_uri,
       code_challenge: row.code_challenge,
-      session_id: row.session_id
+      session_id: row.session_id,
+      resource: row.resource
     };
   }
 
@@ -276,7 +287,7 @@ export class SessionStorage {
 
   async getSessionByOpaqueToken(opaqueToken: string): Promise<{ sessionId: string; session: Session } | null> {
     const row = await this.dbGet(
-      `SELECT ot.session_id, s.access_token, s.refresh_token, s.expires_at, s.user_id
+      `SELECT ot.session_id, s.access_token, s.refresh_token, s.expires_at, s.user_id, s.audience
        FROM opaque_tokens ot
        JOIN sessions s ON ot.session_id = s.session_id
        WHERE ot.opaque_token = ? AND ot.expires_at > ?`,
@@ -292,7 +303,8 @@ export class SessionStorage {
         access_token: row.access_token,
         refresh_token: row.refresh_token,
         expires_at: row.expires_at,
-        user_id: row.user_id
+        user_id: row.user_id,
+        audience: row.audience
       }
     };
   }

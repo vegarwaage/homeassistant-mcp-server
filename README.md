@@ -104,12 +104,13 @@ ssh root@homeassistant.local \
 
 #### OAuth Implementation Details
 
-This server implements the **March 26, 2025 OAuth 2.1 specification** for MCP servers:
+This server implements the **June 18, 2025 OAuth 2.1 specification** for MCP servers:
 
 - **RFC 8414**: OAuth 2.0 Authorization Server Metadata (`.well-known/oauth-authorization-server`)
 - **RFC 9728**: OAuth 2.0 Protected Resource Metadata (`.well-known/oauth-protected-resource/mcp`)
 - **RFC 7591**: Dynamic Client Registration (`/mcp/oauth/register`)
-- **Protocol Version**: `MCP-Protocol-Version: 2025-03-26` header on HEAD requests
+- **RFC 8707**: Resource Indicators for OAuth 2.0 (audience validation)
+- **Protocol Version**: `MCP-Protocol-Version: 2025-06-18` header on HEAD requests
 
 #### Security Architecture: Token Wrapping
 
@@ -122,7 +123,48 @@ The server uses **token wrapping** to protect Home Assistant credentials:
 
 This ensures Home Assistant tokens never leave the server and cannot be extracted from clients.
 
-#### Setup for Claude.ai
+#### Known Limitation: Claude.ai OAuth Connection
+
+**⚠️ Current Status (November 2025):** Claude.ai remote MCP connections fail with `step=start_error` when using Home Assistant's native OAuth.
+
+**What Works:**
+- ✅ OAuth 2.1 spec compliance (June 2025 / 2025-06-18)
+- ✅ Dynamic Client Registration (RFC 7591)
+- ✅ OAuth discovery endpoints (RFC 8414, RFC 9728)
+- ✅ Token wrapping with SQLite persistence
+- ✅ Audience binding (RFC 8707)
+- ✅ All OAuth endpoints return valid responses
+
+**What Fails:**
+- ❌ Claude.ai's OAuth proxy stops after client registration
+- ❌ Never redirects to authorization endpoint
+- ❌ Error: `step=start_error` in Claude.ai URL
+
+**Root Cause:**
+This is a known issue ([anthropics/claude-code#3515](https://github.com/anthropics/claude-code/issues/3515)) with Claude.ai's OAuth proxy validation after dynamic client registration. The OAuth flow completes: Discovery → Registration → **STOP**. The authorization request never arrives at the MCP server.
+
+**Attempted Fixes (November 7, 2025):**
+1. ✅ Fixed audience binding to comply with June 2025 spec
+2. ✅ Made `resource` parameter mandatory in authorization requests
+3. ✅ Added dual protected resource endpoints (with and without `/mcp` suffix)
+4. ✅ Verified `token_endpoint_auth_methods_supported` includes `client_secret_post`
+5. ✅ Added HEAD endpoints on `/` and `/mcp` for protocol discovery
+6. ❌ Issue persists - appears to be Claude.ai proxy validation, not server implementation
+
+**Recommended Approach:**
+Use **stdio transport** via SSH for reliable access from Claude Desktop and Claude Code. See stdio transport configuration below.
+
+**Alternative Approach (Untested):**
+Third-party OAuth providers (GitHub OAuth, Auth0) are confirmed working with Claude.ai remote MCP servers. However, this changes the security model:
+- All users would share a single Home Assistant account
+- User identity comes from GitHub/Auth0, not Home Assistant
+- Requires implementing custom authorization logic
+
+For single-user deployments, stdio transport is simpler and more secure.
+
+#### Setup for Claude.ai (Experimental - Currently Non-Functional)
+
+**Note:** The following configuration is complete and spec-compliant, but currently fails due to Claude.ai's OAuth proxy validation issue described above.
 
 1. **Configure Environment Variables**:
    ```bash
@@ -138,7 +180,7 @@ This ensures Home Assistant tokens never leave the server and cannot be extracte
    - Go to Claude.ai MCP settings
    - Add server URL: `https://your-public-url.com`
    - Claude.ai will discover OAuth endpoints via `.well-known/oauth-authorization-server`
-   - Follow OAuth flow to authenticate
+   - **Expected result:** `step=start_error` after client registration
 
 #### OAuth Endpoints
 

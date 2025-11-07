@@ -1,10 +1,13 @@
-// ABOUTME: HTTP transport with OAuth 2.1 for MCP server
-// ABOUTME: Implements RFC 8414, RFC 9728, RFC 7591 for Claude.ai compatibility
+// ABOUTME: HTTP transport with OAuth 2.1 for MCP server (June 2025 spec)
+// ABOUTME: Implements MCP 2025-06-18 as Resource Server + Authorization Server combined
+// ABOUTME: Key difference from March 2025: MCP servers are Resource Servers, not just Authorization Servers
+// ABOUTME: June 2025 requires audience binding (RFC 8707) for all tokens
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
 import { SessionStorage } from './session-storage.js';
@@ -26,11 +29,14 @@ export async function createHttpTransport(server: Server): Promise<void> {
     throw new Error('SUPERVISOR_TOKEN environment variable is required for HTTP transport');
   }
 
+  // Store active SSE transports by session ID
+  const sseTransports = new Map<string, any>();
+
   // Middleware
   app.use(cors({
     origin: true,
     credentials: true,
-    exposedHeaders: ['Mcp-Session-Id', 'WWW-Authenticate']
+    exposedHeaders: ['Mcp-Session-Id', 'MCP-Protocol-Version', 'WWW-Authenticate']
   }));
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
@@ -46,12 +52,12 @@ export async function createHttpTransport(server: Server): Promise<void> {
   // MCP Protocol Version - Required for Claude compatibility
   // ============================================================================
   app.head('/', (req, res) => {
-    res.setHeader('MCP-Protocol-Version', '2025-03-26');
+    res.setHeader('MCP-Protocol-Version', '2025-06-18');
     res.status(200).end();
   });
 
   app.head('/mcp', (req, res) => {
-    res.setHeader('MCP-Protocol-Version', '2025-03-26');
+    res.setHeader('MCP-Protocol-Version', '2025-06-18');
     res.status(200).end();
   });
 
@@ -76,10 +82,21 @@ export async function createHttpTransport(server: Server): Promise<void> {
   // ============================================================================
   // RFC 9728: OAuth 2.0 Protected Resource Metadata
   // ============================================================================
+  // Fallback endpoint for clients that don't append resource identifier
+  app.get('/.well-known/oauth-protected-resource', (req, res) => {
+    res.json({
+      resource: `${BASE_URL}/mcp`,
+      authorization_servers: [BASE_URL],
+      bearer_methods_supported: ['header']
+    });
+  });
+
+  // Resource-specific endpoint per RFC 9728
   app.get('/.well-known/oauth-protected-resource/mcp', (req, res) => {
     res.json({
       resource: `${BASE_URL}/mcp`,
-      authorization_servers: [BASE_URL]
+      authorization_servers: [BASE_URL],
+      bearer_methods_supported: ['header']
     });
   });
 
@@ -125,9 +142,9 @@ export async function createHttpTransport(server: Server): Promise<void> {
   // OAuth 2.1 Authorization Flow
   // ============================================================================
 
-  // Authorization endpoint - redirects to Home Assistant OAuth
+  // Authorization endpoint - auto-approve and issue code
   app.get('/auth/authorize', async (req, res) => {
-    const { client_id, redirect_uri, state, code_challenge, code_challenge_method, response_type } = req.query;
+    const { client_id, redirect_uri, state, code_challenge, code_challenge_method, response_type, resource } = req.query;
 
     // Validate client
     const client = await storage.getClient(client_id as string);
@@ -145,83 +162,54 @@ export async function createHttpTransport(server: Server): Promise<void> {
       return res.status(400).json({ error: 'unsupported_response_type' });
     }
 
-    // Generate authorization code
+    // RFC 8707 + June 2025 MCP Spec: REQUIRE resource parameter for audience binding
+    const expectedResource = `${BASE_URL}/mcp`;
+    if (!resource) {
+      console.log(`[OAuth] Missing required resource parameter (June 2025 spec requirement)`);
+      return res.status(400).json({
+        error: 'invalid_request',
+        error_description: `resource parameter is required (must be ${expectedResource})`
+      });
+    }
+    if (resource !== expectedResource) {
+      console.log(`[OAuth] Invalid resource: ${resource}, expected: ${expectedResource}`);
+      return res.status(400).json({
+        error: 'invalid_target',
+        error_description: `Resource must be ${expectedResource}`
+      });
+    }
+
+    // Create session using SUPERVISOR_TOKEN (no HA OAuth needed)
+    const sessionId = uuidv4();
+    await storage.setSession(sessionId, {
+      access_token: HA_TOKEN,
+      refresh_token: undefined, // Long-lived tokens don't have refresh
+      expires_at: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year
+      user_id: 'supervisor',
+      audience: resource as string | undefined  // RFC 8707: Store audience claim
+    });
+
+    // Generate authorization code and link to session
     const authCode = uuidv4();
     await storage.setAuthCode(authCode, {
       client_id: client_id as string,
       redirect_uri: redirect_uri as string,
-      code_challenge: code_challenge as string | undefined
+      code_challenge: code_challenge as string | undefined,
+      session_id: sessionId,
+      resource: resource as string | undefined  // RFC 8707: Store resource indicator
     });
 
-    // Redirect to Home Assistant OAuth
-    const haAuthUrl = `${HA_URL}/auth/authorize?` +
-      `client_id=${encodeURIComponent(BASE_URL)}&` +
-      `redirect_uri=${encodeURIComponent(`${BASE_URL}/auth/callback`)}&` +
-      `state=${encodeURIComponent(JSON.stringify({ authCode, originalState: state }))}&` +
-      `response_type=code`;
+    console.log(`[OAuth] Auto-approved for client ${client_id}, session ${sessionId}, resource ${resource || 'none'}`);
 
-    console.log(`[OAuth] Redirecting to HA auth: ${haAuthUrl}`);
-    res.redirect(haAuthUrl);
+    // Redirect back to client with auth code
+    const redirectUrl = `${redirect_uri}?code=${authCode}&state=${state}`;
+    res.redirect(redirectUrl);
   });
 
-  // Home Assistant OAuth callback
-  app.get('/auth/callback', async (req, res) => {
-    const { code: haCode, state: stateJson } = req.query;
-
-    if (!haCode) {
-      return res.status(400).json({ error: 'missing_code' });
-    }
-
-    try {
-      const { authCode, originalState } = JSON.parse(stateJson as string);
-      const authData = await storage.getAuthCode(authCode);
-
-      if (!authData) {
-        return res.status(400).json({ error: 'invalid_auth_code' });
-      }
-
-      // Exchange HA code for token
-      const tokenResponse = await axios.post(`${HA_URL}/auth/token`, {
-        grant_type: 'authorization_code',
-        code: haCode,
-        client_id: BASE_URL
-      }, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      });
-
-      const { access_token, refresh_token, expires_in } = tokenResponse.data;
-
-      // Store session with HA tokens
-      const sessionId = uuidv4();
-      await storage.setSession(sessionId, {
-        access_token,
-        refresh_token,
-        expires_at: Date.now() + (expires_in * 1000),
-        user_id: 'ha_user'
-      });
-
-      // Link session to auth code
-      await storage.setAuthCode(authCode, {
-        ...authData,
-        session_id: sessionId
-      });
-
-      console.log(`[OAuth] Linked session ${sessionId} to auth code`);
-
-      // Redirect back to client with our auth code
-      const redirectUrl = `${authData.redirect_uri}?code=${authCode}&state=${originalState}`;
-      res.redirect(redirectUrl);
-    } catch (error: any) {
-      console.error('[OAuth] Error exchanging HA code:', error.message);
-      res.status(500).json({ error: 'server_error' });
-    }
-  });
 
   // Token endpoint
   app.post('/auth/token', async (req, res) => {
-    const { grant_type, code, client_id, client_secret, refresh_token } = req.body;
+    const { grant_type, code, client_id, client_secret, refresh_token, resource } = req.body;
 
     if (grant_type === 'authorization_code') {
       // Validate code
@@ -234,6 +222,15 @@ export async function createHttpTransport(server: Server): Promise<void> {
       const client = await storage.getClient(client_id);
       if (!client || client.client_secret !== client_secret) {
         return res.status(401).json({ error: 'invalid_client' });
+      }
+
+      // RFC 8707: Validate resource parameter matches authorization
+      if (resource && authData.resource && resource !== authData.resource) {
+        console.log(`[OAuth] Resource mismatch: token request ${resource} != auth code ${authData.resource}`);
+        return res.status(400).json({
+          error: 'invalid_target',
+          error_description: 'Resource parameter must match authorization request'
+        });
       }
 
       // Get session linked to this auth code
@@ -259,7 +256,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
         Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
       );
 
-      console.log(`[OAuth] Issued opaque tokens for session ${authData.session_id}`);
+      console.log(`[OAuth] Issued opaque tokens for session ${authData.session_id}, audience ${session.audience || 'none'}`);
 
       res.json({
         access_token: opaqueAccessToken,
@@ -276,56 +273,32 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
       const { sessionId, session } = result;
 
-      // Exchange HA refresh token with Home Assistant
-      try {
-        const tokenResponse = await axios.post(`${HA_URL}/auth/token`, new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: session.refresh_token || '',
-          client_id: BASE_URL
-        }), {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        });
+      // SUPERVISOR_TOKEN is long-lived, no need to refresh with HA
+      // Just issue new opaque tokens with same session
 
-        const { access_token, refresh_token: new_refresh_token, expires_in } = tokenResponse.data;
+      const expires_in = Math.floor((session.expires_at - Date.now()) / 1000);
 
-        // Update session with new HA tokens
-        session.access_token = access_token;
-        session.refresh_token = new_refresh_token || session.refresh_token;
-        session.expires_at = Date.now() + (expires_in * 1000);
+      // Issue NEW opaque tokens (don't reuse old ones)
+      const newOpaqueAccessToken = await storage.createOpaqueToken(
+        sessionId,
+        session.expires_at
+      );
+      const newOpaqueRefreshToken = await storage.createOpaqueToken(
+        sessionId,
+        Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
+      );
 
-        await storage.setSession(sessionId, session);
+      // Revoke the old refresh token
+      await storage.revokeOpaqueToken(refresh_token);
 
-        // Issue NEW opaque tokens (don't reuse old ones)
-        const newOpaqueAccessToken = await storage.createOpaqueToken(
-          sessionId,
-          session.expires_at
-        );
-        const newOpaqueRefreshToken = await storage.createOpaqueToken(
-          sessionId,
-          Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days
-        );
+      console.log(`[OAuth] Refreshed tokens for session ${sessionId}`);
 
-        // Revoke the old refresh token
-        await storage.revokeOpaqueToken(refresh_token);
-
-        console.log(`[OAuth] Refreshed tokens for session ${sessionId}`);
-
-        res.json({
-          access_token: newOpaqueAccessToken,
-          token_type: 'Bearer',
-          expires_in,
-          refresh_token: newOpaqueRefreshToken
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error('[OAuth] Refresh token error:', message);
-        res.status(400).json({
-          error: 'invalid_grant',
-          error_description: 'Failed to refresh token with Home Assistant'
-        });
-      }
+      res.json({
+        access_token: newOpaqueAccessToken,
+        token_type: 'Bearer',
+        expires_in,
+        refresh_token: newOpaqueRefreshToken
+      });
     } else {
       res.status(400).json({ error: 'unsupported_grant_type' });
     }
@@ -355,7 +328,7 @@ export async function createHttpTransport(server: Server): Promise<void> {
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       res.setHeader('WWW-Authenticate',
-        `Bearer realm="${BASE_URL}", resource_metadata="${BASE_URL}/.well-known/oauth-protected-resource/mcp"`
+        `Bearer realm="${BASE_URL}", resource_metadata="${BASE_URL}/.well-known/oauth-protected-resource"`
       );
       return res.status(401).json({
         error: 'unauthorized',
@@ -389,40 +362,110 @@ export async function createHttpTransport(server: Server): Promise<void> {
       });
     }
 
+    // RFC 8707 + June 2025 MCP Spec: REQUIRE audience claim for all tokens
+    const expectedAudience = `${BASE_URL}/mcp`;
+    if (!session.audience) {
+      console.log(`[Auth] Token missing required audience claim (June 2025 spec requirement)`);
+      res.setHeader('WWW-Authenticate',
+        `Bearer realm="${BASE_URL}", error="invalid_token", error_description="Token missing audience claim"`
+      );
+      return res.status(401).json({
+        error: 'invalid_token',
+        error_description: 'Token must include audience claim per MCP 2025-06-18 spec'
+      });
+    }
+    if (session.audience !== expectedAudience) {
+      console.log(`[Auth] Audience mismatch: ${session.audience} !== ${expectedAudience}`);
+      res.setHeader('WWW-Authenticate',
+        `Bearer realm="${BASE_URL}", error="invalid_token", error_description="Token not intended for this resource"`
+      );
+      return res.status(403).json({
+        error: 'insufficient_scope',
+        error_description: 'Token not intended for this resource'
+      });
+    }
+
     // Attach session to request (contains HA's access token for API calls)
     (req as any).session = session;
     next();
   }
 
   // ============================================================================
-  // MCP over SSE Transport
+  // MCP over Streamable HTTP Transport (Protocol 2025-06-18 / June 2025)
+  // Resource Server endpoint - consumes Bearer tokens with audience binding
   // ============================================================================
-  app.get('/mcp', requireAuth, async (req, res) => {
-    console.log('[MCP] New SSE connection');
+  app.all('/mcp', requireAuth, async (req, res) => {
+    console.log(`[MCP] ${req.method} request`);
 
-    // Set SSE headers
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
+    try {
+      // Check for existing session ID
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+      let transport: StreamableHTTPServerTransport | undefined;
 
-    // Create SSE transport
-    const transport = new SSEServerTransport('/mcp', res);
+      if (sessionId && sseTransports.has(sessionId)) {
+        // Reuse existing transport
+        transport = sseTransports.get(sessionId) as StreamableHTTPServerTransport;
+        console.log(`[MCP] Reusing transport for session: ${sessionId}`);
+      } else if (!sessionId && req.method === 'POST' && isInitializeRequest(req.body)) {
+        // Create new transport for initialize request
+        transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => uuidv4(),
+          onsessioninitialized: (sid) => {
+            console.log(`[MCP] Session initialized: ${sid}`);
+            if (transport) {
+              sseTransports.set(sid, transport);
+            }
+          }
+        });
 
-    // Connect transport to server
-    await server.connect(transport);
+        console.log(`[MCP] New transport created`);
 
-    // Handle client disconnect
-    req.on('close', () => {
-      console.log('[MCP] Client disconnected');
-    });
-  });
+        // Handle transport close
+        transport.onclose = () => {
+          const sid = transport?.sessionId;
+          if (sid) {
+            console.log(`[MCP] Transport closed: ${sid}`);
+            sseTransports.delete(sid);
+          }
+        };
 
-  // POST endpoint for SSE messages
-  app.post('/mcp', requireAuth, async (req, res) => {
-    console.log('[MCP] Received message');
-    // The SSE transport handles this via the connected transport
-    res.json({ received: true });
+        // Connect transport to server
+        await server.connect(transport);
+      } else if (!sessionId) {
+        return res.status(400).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Bad Request: Missing Mcp-Session-Id header'
+          },
+          id: null
+        });
+      } else {
+        return res.status(404).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32000,
+            message: 'Not Found: Session not found'
+          },
+          id: null
+        });
+      }
+
+      // Handle the request with the transport
+      await transport.handleRequest(req, res, req.body);
+    } catch (error: any) {
+      console.error('[MCP] Error handling request:', error.message);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: 'Internal error'
+          },
+          id: null
+        });
+      }
+    }
   });
 
   // ============================================================================
