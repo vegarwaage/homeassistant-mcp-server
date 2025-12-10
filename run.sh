@@ -47,10 +47,7 @@ echo "✓ MCP Server deployed to ${DEPLOY_PATH}"
 echo "  Transport: $TRANSPORT"
 echo "  Version: $(node -p "require('./package.json').version")"
 echo ""
-echo "Connect Claude Desktop/Code with:"
-echo "  cd /config/mcp-server && SUPERVISOR_TOKEN='***' node dist/index.js"
-echo ""
-echo "Add-on will remain running to enable auto-updates on restart."
 
-# Keep container alive so add-on stays "started"
-sleep infinity
+# Start the MCP server
+echo "Starting MCP Server..."
+exec node dist/index.js
