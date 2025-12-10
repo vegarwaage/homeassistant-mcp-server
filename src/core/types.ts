@@ -59,6 +59,8 @@ export interface HAServiceCall {
     device_id?: string | string[];
     area_id?: string | string[];
   };
+  /** If true, returns response data from services that support it (HA 2024.8+) */
+  return_response?: boolean;
 }
 
 /**
@@ -70,6 +72,28 @@ export interface HAHistoryQuery {
   end_time?: string;
   minimal_response?: boolean;
   significant_changes_only?: boolean;
+  /** If true, excludes attributes from response (more aggressive than minimal_response) */
+  no_attributes?: boolean;
+}
+
+/**
+ * Target resolution request for WebSocket extract_from_target command
+ */
+export interface HATargetResolution {
+  entity_id?: string | string[];
+  device_id?: string | string[];
+  area_id?: string | string[];
+  floor_id?: string | string[];
+  label_id?: string | string[];
+}
+
+/**
+ * Result of target resolution
+ */
+export interface HATargetResolutionResult {
+  entities: string[];
+  devices: string[];
+  areas: string[];
 }
 
 /**

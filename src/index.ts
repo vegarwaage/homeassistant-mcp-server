@@ -48,7 +48,6 @@ import { registerLogbookTools } from './tools/logbook.js';
 import { registerBlueprintsTools } from './tools/blueprints.js';
 import { registerNotificationsTools } from './tools/notifications.js';
 import { registerHelpTools } from './tools/help.js';
-import { createStdioTransport, createHttpTransport } from './transports/index.js';
 import { initSession, grantPermission } from './permissions.js';
 import { filesystemTools, handleFilesystemTool } from './tools/filesystem.js';
 import { databaseTools, handleDatabaseTool } from './tools/database.js';
@@ -304,8 +303,10 @@ class HAMCPServer {
   async run() {
     try {
       if (TRANSPORT === 'http') {
+        const { createHttpTransport } = await import('./transports/http.js');
         await createHttpTransport(this.server);
       } else {
+        const { createStdioTransport } = await import('./transports/stdio.js');
         await createStdioTransport(this.server);
       }
 

@@ -281,6 +281,9 @@ export class HomeAssistantClient {
     if (query.significant_changes_only) {
       params.append('significant_changes_only', 'true');
     }
+    if (query.no_attributes) {
+      params.append('no_attributes', 'true');
+    }
 
     const endpoint = query.start_time
       ? `/history/period/${query.start_time}`
@@ -293,11 +296,16 @@ export class HomeAssistantClient {
 
   /**
    * Call a Home Assistant service
+   * @param serviceCall - Service call parameters
+   * @returns Service result, or response data if return_response is true (HA 2024.8+)
    */
   async callService(serviceCall: HAServiceCall): Promise<any> {
-    const { domain, service, service_data, target } = serviceCall;
+    const { domain, service, service_data, target, return_response } = serviceCall;
     const data = { ...service_data, ...target };
-    return this.post(`/services/${domain}/${service}`, data);
+    const url = return_response
+      ? `/services/${domain}/${service}?return_response`
+      : `/services/${domain}/${service}`;
+    return this.post(url, data);
   }
 
   /**
@@ -614,5 +622,37 @@ export class HomeAssistantClient {
       service,
       service_data: serviceData
     });
+  }
+
+  /**
+   * Get list of loaded components (simpler than getSystemInfo)
+   */
+  async getComponents(): Promise<string[]> {
+    return this.get<string[]>('/components');
+  }
+
+  /**
+   * Get current session error log
+   */
+  async getErrorLog(): Promise<string> {
+    return this.get<string>('/error_log');
+  }
+
+  /**
+   * Check configuration via REST API (doesn't require CLI)
+   */
+  async checkConfigRest(): Promise<HAValidationResult> {
+    try {
+      const result = await this.post<{ result: string; errors: string | null }>('/config/core/check_config');
+      return {
+        valid: result.result === 'valid',
+        errors: result.errors ? [result.errors] : undefined
+      };
+    } catch (error: any) {
+      return {
+        valid: false,
+        errors: [error.message || 'Configuration check failed']
+      };
+    }
   }
 }

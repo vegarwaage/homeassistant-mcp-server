@@ -25,10 +25,10 @@ export function registerHelpTools(): ToolDefinition[] {
         const capabilities = {
           server_info: {
             name: 'Home Assistant MCP Server',
-            version: '2.2.0',
-            total_tools: 133,
+            version: '2.4.0',
+            total_tools: 136,
             transport: process.env.TRANSPORT || 'stdio',
-            description: 'Full-featured MCP server for Home Assistant with 132 tools across entity management, automation, configuration, and system control'
+            description: 'Full-featured MCP server for Home Assistant with 136 tools across entity management, automation, configuration, and system control. Supports HA 2024.8+ service responses and HA 2025+ target resolution.'
           },
 
           quick_start: {
@@ -141,9 +141,9 @@ export function registerHelpTools(): ToolDefinition[] {
 
           important_limitations: {
             oauth_web_mobile: 'OAuth for web/mobile is complete but blocked by Anthropic\'s OAuth proxy (external issue)',
-            validation: 'Config validation (validate=true) requires Supervisor API - always use validate=false via MCP',
+            validation: 'Config validation via REST (validate=true) available, or use ha_check_config_rest for direct REST validation',
             mobile_notifications: 'Use device actions in automations, not ha_send_notification service',
-            websocket_apis: 'Some features (HACS, area management) require WebSocket API not yet implemented'
+            service_responses: 'Use return_response=true with ha_call_service to get response data from services (HA 2024.8+)'
           },
 
           connection_info: {

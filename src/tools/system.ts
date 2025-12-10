@@ -256,6 +256,53 @@ export function registerSystemTools(): ToolDefinition[] {
           message: 'Home Assistant restart initiated'
         };
       }
+    },
+    {
+      name: 'ha_get_components',
+      description: 'Get list of loaded Home Assistant components/integrations. Simpler and faster than ha_system_info for just getting component list.',
+      inputSchema: {
+        type: 'object',
+        properties: {}
+      },
+      handler: async (client: HomeAssistantClient, args: any) => {
+        const components = await client.getComponents();
+        return {
+          count: components.length,
+          components: components.sort()
+        };
+      }
+    },
+    {
+      name: 'ha_get_error_log',
+      description: 'Get current session error log from Home Assistant. Returns raw error log text with recent errors and warnings.',
+      inputSchema: {
+        type: 'object',
+        properties: {}
+      },
+      handler: async (client: HomeAssistantClient, args: any) => {
+        const errorLog = await client.getErrorLog();
+        const lines = errorLog.split('\n').filter(line => line.trim());
+        return {
+          line_count: lines.length,
+          error_log: errorLog
+        };
+      }
+    },
+    {
+      name: 'ha_check_config_rest',
+      description: 'Validate Home Assistant configuration using REST API (does not require CLI access). Returns validation result with any errors found.',
+      inputSchema: {
+        type: 'object',
+        properties: {}
+      },
+      handler: async (client: HomeAssistantClient, args: any) => {
+        const result = await client.checkConfigRest();
+        return {
+          valid: result.valid,
+          errors: result.errors || [],
+          message: result.valid ? 'Configuration is valid' : 'Configuration has errors'
+        };
+      }
     }
   ];
 }
