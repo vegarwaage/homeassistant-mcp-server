@@ -8,16 +8,19 @@ export function registerStateTools(): ToolDefinition[] {
   return [
     {
       name: 'ha_get_states',
-      description: 'Read current states of all Home Assistant entities (lights, sensors, switches, climate, media players, etc.). Use this to check if devices are on/off, read sensor values, see current temperatures, check device availability. Filter by domain (e.g., "light", "sensor") to see all entities of that type, or specify entity_id for a single entity. This is your primary tool for discovering what entities exist and reading their current status.',
+      description: 'Read current states of Home Assistant entities. Filter by domain (e.g., "light", "sensor") or specify entity_id for a single entity. Use minimal=true for smaller responses (entity_id, state, friendly_name only). Default limit is 50 entities to avoid flooding context.',
       inputSchema: {
         type: 'object',
         properties: {
           entity_id: { type: 'string', description: 'Specific entity ID (e.g., "light.living_room")' },
-          domain: { type: 'string', description: 'Domain filter to list all entities of a type (e.g., "light", "sensor", "switch", "climate", "automation")' }
+          domain: { type: 'string', description: 'Domain filter to list all entities of a type (e.g., "light", "sensor", "switch", "climate", "automation")' },
+          limit: { type: 'number', description: 'Maximum entities to return (default: 50, max: 500). Use 0 for unlimited (not recommended).' },
+          offset: { type: 'number', description: 'Number of entities to skip for pagination (default: 0)' },
+          minimal: { type: 'boolean', description: 'Return minimal data (entity_id, state, friendly_name only) to reduce context usage. Default: false' }
         }
       },
       handler: async (client: HomeAssistantClient, args: any) => {
-        const { entity_id, domain } = args;
+        const { entity_id, domain, limit = 50, offset = 0, minimal = false } = args;
 
         let states = await client.getStates(entity_id);
 
@@ -25,10 +28,45 @@ export function registerStateTools(): ToolDefinition[] {
           states = states.filter(state => state.entity_id.startsWith(`${domain}.`));
         }
 
-        return {
-          count: states.length,
-          states: states
+        const totalCount = states.length;
+
+        // Apply pagination
+        const actualLimit = limit === 0 ? states.length : Math.min(Math.max(1, limit), 500);
+        const actualOffset = Math.max(0, offset);
+        states = states.slice(actualOffset, actualOffset + actualLimit);
+
+        // Apply minimal transformation if requested
+        const resultStates = minimal
+          ? states.map(s => ({
+              entity_id: s.entity_id,
+              state: s.state,
+              friendly_name: s.attributes?.friendly_name,
+              last_changed: s.last_changed
+            }))
+          : states;
+
+        const response: any = {
+          count: resultStates.length,
+          total_available: totalCount,
+          states: resultStates
         };
+
+        // Add pagination info if relevant
+        if (totalCount > actualLimit || actualOffset > 0) {
+          response.pagination = {
+            limit: actualLimit,
+            offset: actualOffset,
+            has_more: actualOffset + actualLimit < totalCount,
+            next_offset: actualOffset + actualLimit < totalCount ? actualOffset + actualLimit : null
+          };
+        }
+
+        // Add warning if large unbounded request
+        if (limit === 0 && totalCount > 100) {
+          response.warning = `Returning ${totalCount} entities. Consider using domain filter, limit, or minimal=true to reduce context usage.`;
+        }
+
+        return response;
       }
     },
     {

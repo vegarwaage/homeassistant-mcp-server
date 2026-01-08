@@ -52,6 +52,46 @@ import { initSession, grantPermission } from './permissions.js';
 import { filesystemTools, handleFilesystemTool } from './tools/filesystem.js';
 import { databaseTools, handleDatabaseTool } from './tools/database.js';
 import { systemTools as rootSystemTools, handleSystemTool } from './tools/system.js';
+import { estimateTokens } from './validation.js';
+
+// Configuration for response size management
+const MAX_RESPONSE_CHARS = 200000; // ~50k tokens
+const WARN_RESPONSE_CHARS = 60000; // ~15k tokens
+
+/**
+ * Wrap tool response with size checking and warnings
+ * Helps prevent context flooding from unexpectedly large responses
+ */
+function wrapResponse(result: any, toolName: string): any {
+  const jsonStr = JSON.stringify(result, null, 2);
+  const charCount = jsonStr.length;
+  const { tokens } = estimateTokens(result);
+
+  // If response is too large, truncate and warn
+  if (charCount > MAX_RESPONSE_CHARS) {
+    return {
+      error: 'response_too_large',
+      message: `Response from ${toolName} was too large (~${tokens} tokens, ${(charCount / 1024).toFixed(1)}KB). Use filters, limits, or pagination to reduce response size.`,
+      truncated_preview: jsonStr.slice(0, 2000) + '\n... [TRUNCATED] ...',
+      suggestions: [
+        'Add limit parameter to reduce results',
+        'Use minimal=true if available',
+        'Filter by domain, area, or other criteria',
+        'Use pagination with offset parameter'
+      ]
+    };
+  }
+
+  // If response is large but not huge, add warning
+  if (charCount > WARN_RESPONSE_CHARS && typeof result === 'object' && result !== null) {
+    // Only add warning if result doesn't already have one
+    if (!result.warning && !result.context_warning) {
+      result.context_warning = `Large response (~${tokens} tokens). Consider using filters or pagination.`;
+    }
+  }
+
+  return result;
+}
 
 // Extract and validate environment variables
 const HA_BASE_URL = process.env.HA_BASE_URL || 'http://homeassistant:8123';
@@ -89,7 +129,7 @@ class HAMCPServer {
     this.server = new Server(
       {
         name: 'homeassistant-mcp-server',
-        version: '2.3.0',
+        version: '2.5.0',
       },
       {
         capabilities: {
@@ -167,11 +207,13 @@ class HAMCPServer {
             };
           }
 
+          // Wrap response with size checking
+          const wrappedResult = wrapResponse(result, name);
           return {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(result, null, 2),
+                text: JSON.stringify(wrappedResult, null, 2),
               },
             ],
           };
@@ -196,11 +238,13 @@ class HAMCPServer {
 
       try {
         const result = await tool.handler(this.haClient, args || {});
+        // Wrap response with size checking
+        const wrappedResult = wrapResponse(result, name);
         return {
           content: [
             {
               type: 'text',
-              text: JSON.stringify(result, null, 2),
+              text: JSON.stringify(wrappedResult, null, 2),
             },
           ],
         };

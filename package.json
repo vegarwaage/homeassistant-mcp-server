@@ -1,8 +1,8 @@
 {
   "name": "homeassistant-mcp-server",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "type": "module",
-  "description": "Home Assistant MCP Server with layered architecture (136 tools). Supports HA 2024.8+ service responses and HA 2025+ target resolution.",
+  "description": "Home Assistant MCP Server with layered architecture (135 tools). Features context-aware response limiting, pagination, and size warnings.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

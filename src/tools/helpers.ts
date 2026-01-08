@@ -249,40 +249,80 @@ export function registerHelpersTools(): ToolDefinition[] {
     },
     {
       name: 'ha_list_input_helpers',
-      description: 'List all input helper entities (input_boolean, input_number, input_text, input_select, input_datetime)',
+      description: 'List all input helper entities (input_boolean, input_number, input_text, input_select, input_datetime). Use minimal=true for smaller responses.',
       inputSchema: {
         type: 'object',
-        properties: {}
+        properties: {
+          type: { type: 'string', description: 'Filter by helper type (input_boolean, input_number, input_text, input_select, input_datetime)' },
+          limit: { type: 'number', description: 'Maximum helpers to return per type (default: 50, max: 200)' },
+          minimal: { type: 'boolean', description: 'Return only entity_id, state, friendly_name (excludes full attributes). Default: false' }
+        }
       },
       handler: async (client: HomeAssistantClient, args: any) => {
+        const { type, limit = 50, minimal = false } = args;
+        const actualLimit = Math.min(Math.max(1, limit), 200);
+
         const states = await client.getStates();
 
         // Filter entities that start with "input_"
-        const inputHelpers = states.filter(s => s.entity_id.startsWith('input_'));
+        let inputHelpers = states.filter(s => s.entity_id.startsWith('input_'));
 
-        // Group by type
+        // Filter by type if specified
+        if (type) {
+          inputHelpers = inputHelpers.filter(s => s.entity_id.startsWith(`${type}.`));
+        }
+
+        // Group by type with limit per group
         const grouped: Record<string, any[]> = {};
+        const groupCounts: Record<string, number> = {};
 
         for (const helper of inputHelpers) {
           const domain = helper.entity_id.split('.')[0];
 
           if (!grouped[domain]) {
             grouped[domain] = [];
+            groupCounts[domain] = 0;
           }
 
-          grouped[domain].push({
-            entity_id: helper.entity_id,
-            state: helper.state,
-            friendly_name: helper.attributes.friendly_name,
-            attributes: helper.attributes
-          });
+          groupCounts[domain]++;
+
+          // Only add up to limit per group
+          if (grouped[domain].length < actualLimit) {
+            if (minimal) {
+              grouped[domain].push({
+                entity_id: helper.entity_id,
+                state: helper.state,
+                friendly_name: helper.attributes.friendly_name
+              });
+            } else {
+              grouped[domain].push({
+                entity_id: helper.entity_id,
+                state: helper.state,
+                friendly_name: helper.attributes.friendly_name,
+                attributes: helper.attributes
+              });
+            }
+          }
         }
 
-        return {
+        const response: any = {
           total_count: inputHelpers.length,
+          returned_count: Object.values(grouped).reduce((sum, arr) => sum + arr.length, 0),
           grouped_by_type: grouped,
           available_types: Object.keys(grouped).sort()
         };
+
+        // Add truncation info if any groups were limited
+        const truncatedTypes = Object.keys(groupCounts).filter(t => groupCounts[t] > actualLimit);
+        if (truncatedTypes.length > 0) {
+          response.truncated_types = truncatedTypes.map(t => ({
+            type: t,
+            returned: actualLimit,
+            total: groupCounts[t]
+          }));
+        }
+
+        return response;
       }
     }
   ];

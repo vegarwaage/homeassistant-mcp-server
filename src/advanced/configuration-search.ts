@@ -5,109 +5,26 @@ import type { HomeAssistantClient } from '../core/ha-client.js';
 
 export function createConfigurationSearchTools(client: HomeAssistantClient) {
   return {
-    search_entities: {
-      name: 'ha_search_entities',
-      description: 'Search through entity registry with filters',
-      inputSchema: {
-        type: 'object' as const,
-        properties: {
-          query: { type: 'string', description: 'Search query (entity_id, name, etc.)' },
-          domain: { type: 'string', description: 'Filter by domain' },
-          area: { type: 'string', description: 'Filter by area name' },
-          device_class: { type: 'string', description: 'Filter by device_class' },
-          state: { type: 'string', description: 'Filter by current state' },
-          label: { type: 'string', description: 'Filter by label name' },
-          limit: { type: 'number', description: 'Maximum number of results (default: 20)' },
-        },
-      },
-      handler: async ({
-        query,
-        domain,
-        area,
-        device_class,
-        state,
-        label,
-        limit = 20,
-      }: {
-        query?: string;
-        domain?: string;
-        area?: string;
-        device_class?: string;
-        state?: string;
-        label?: string;
-        limit?: number;
-      } = {}) => {
-        // Build filter conditions
-        const filters: string[] = [];
-
-        if (query) {
-          const safeQuery = query.toLowerCase().replace(/'/g, "\\'");
-          filters.push(`('${safeQuery}' in state_obj.entity_id.lower() or '${safeQuery}' in state_obj.name.lower())`);
-        }
-
-        if (domain) {
-          filters.push(`state_obj.domain == '${domain}'`);
-        }
-
-        if (area) {
-          const safeArea = area.replace(/'/g, "\\'");
-          filters.push(`area_name(area_id(state_obj.entity_id)) == '${safeArea}'`);
-        }
-
-        if (device_class) {
-          filters.push(`state_obj.attributes.device_class == '${device_class}'`);
-        }
-
-        if (state) {
-          filters.push(`state_obj.state == '${state}'`);
-        }
-
-        if (label) {
-          const safeLabel = label.replace(/'/g, "\\'");
-          filters.push(`'${safeLabel}' in state_attr(state_obj.entity_id, 'labels') | default([])`);
-        }
-
-        const filterCondition = filters.length > 0 ? filters.join(' and ') : 'true';
-
-        const template = `
-{%- set ns = namespace(result=[]) -%}
-{%- for state_obj in states -%}
-  {%- if ${filterCondition} -%}
-    {%- set ns.result = ns.result + [{
-      'entity_id': state_obj.entity_id,
-      'name': state_obj.name,
-      'state': state_obj.state,
-      'domain': state_obj.domain,
-      'device_class': state_obj.attributes.device_class | default(none),
-      'area': area_name(area_id(state_obj.entity_id)) | default(none),
-      'last_changed': state_obj.last_changed | string,
-      'last_updated': state_obj.last_updated | string
-    }] -%}
-  {%- endif -%}
-  {%- if ns.result | length >= ${limit} -%}
-    {%- break -%}
-  {%- endif -%}
-{%- endfor -%}
-{{ {'count': ns.result | length, 'entities': ns.result} | tojson }}
-`;
-        return await client.renderTemplate(template);
-      },
-    },
+    // NOTE: ha_search_entities is defined in tools/search.ts to avoid duplication
+    // The legacy version has better limit handling and is easier to maintain
 
     search_services: {
       name: 'ha_search_services',
-      description: 'Search through available services',
+      description: 'Search through available services. Returns service names and descriptions. Use limit parameter to control response size.',
       inputSchema: {
         type: 'object' as const,
         properties: {
           query: { type: 'string', description: 'Search query (service name)' },
           domain: { type: 'string', description: 'Filter by domain' },
+          limit: { type: 'number', description: 'Maximum results to return (default: 50, max: 200)' },
+          minimal: { type: 'boolean', description: 'Return only domain, service, description (default: false)' },
         },
       },
-      handler: async ({ query, domain }: { query?: string; domain?: string } = {}) => {
+      handler: async ({ query, domain, limit = 50, minimal = false }: { query?: string; domain?: string; limit?: number; minimal?: boolean } = {}) => {
         const services = await client.get<any>('/services');
 
         let results: any[] = [];
+        const actualLimit = Math.min(Math.max(1, limit), 200);
 
         for (const [serviceDomain, serviceData] of Object.entries(services)) {
           if (domain && serviceDomain !== domain) {
@@ -121,16 +38,32 @@ export function createConfigurationSearchTools(client: HomeAssistantClient) {
               serviceName.toLowerCase().includes(query.toLowerCase()) ||
               serviceDomain.toLowerCase().includes(query.toLowerCase())
             ) {
-              results.push({
-                domain: serviceDomain,
-                service: serviceName,
-                ...(serviceInfo as any),
-              });
+              if (minimal) {
+                results.push({
+                  domain: serviceDomain,
+                  service: serviceName,
+                  description: (serviceInfo as any)?.description || null,
+                });
+              } else {
+                results.push({
+                  domain: serviceDomain,
+                  service: serviceName,
+                  ...(serviceInfo as any),
+                });
+              }
             }
+
+            // Early exit if we've hit the limit
+            if (results.length >= actualLimit) break;
           }
+          if (results.length >= actualLimit) break;
         }
 
-        return results;
+        return {
+          count: results.length,
+          limit: actualLimit,
+          services: results.slice(0, actualLimit),
+        };
       },
     },
 

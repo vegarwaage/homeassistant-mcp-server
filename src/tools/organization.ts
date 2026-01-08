@@ -3,31 +3,7 @@
 
 import { HomeAssistantClient } from '../core/index.js';
 import { ToolDefinition } from '../types.js';
-
-/**
- * Sanitize a string ID to prevent template injection.
- * Only allows alphanumeric characters, underscores, and hyphens.
- */
-function sanitizeId(id: string): string {
-  if (typeof id !== 'string') {
-    throw new Error('ID must be a string');
-  }
-  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
-    throw new Error(`Invalid ID format: ${id}. Only alphanumeric, underscore, and hyphen allowed.`);
-  }
-  return id;
-}
-
-/**
- * Sanitize a search string to prevent template injection.
- * Escapes single quotes and backslashes.
- */
-function sanitizeSearchString(search: string): string {
-  if (typeof search !== 'string') {
-    throw new Error('Search must be a string');
-  }
-  return search.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
+import { sanitizeId, sanitizeSearchString } from '../validation.js';
 
 export function registerOrganizationTools(): ToolDefinition[] {
   return [
@@ -115,29 +91,31 @@ export function registerOrganizationTools(): ToolDefinition[] {
     },
     {
       name: 'ha_list_devices',
-      description: 'List devices in Home Assistant. Filter by area or search by name.',
+      description: 'List devices in Home Assistant. Filter by area or search by name. Use include_entities=false to reduce response size.',
       inputSchema: {
         type: 'object',
         properties: {
           area_id: { type: 'string', description: 'Filter devices by area ID' },
-          search: { type: 'string', description: 'Search in device name' }
+          search: { type: 'string', description: 'Search in device name' },
+          limit: { type: 'number', description: 'Maximum devices to return (default: 50, max: 200)' },
+          include_entities: { type: 'boolean', description: 'Include entity_ids array for each device (default: false to reduce context usage)' }
         }
       },
       handler: async (client: HomeAssistantClient, args: any) => {
-        const { area_id, search } = args;
+        const { area_id, search, limit = 50, include_entities = false } = args;
 
         try {
           // Validate inputs if provided
           const sanitizedAreaId = area_id ? sanitizeId(area_id) : null;
           const sanitizedSearch = search ? sanitizeSearchString(search) : null;
+          const actualLimit = Math.min(Math.max(1, limit), 200);
 
           // Build template to get devices using Home Assistant template functions
           let template: string;
 
           if (sanitizedAreaId) {
             // Get devices for a specific area
-            // Use namespace to build list (append is unsafe in HA sandbox)
-            template = `
+            template = include_entities ? `
 {%- set ns = namespace(result=[]) -%}
 {%- for device_id in area_devices('${sanitizedAreaId}') -%}
   {%- set device_name = device_attr(device_id, 'name') -%}
@@ -151,11 +129,22 @@ export function registerOrganizationTools(): ToolDefinition[] {
   }] -%}
 {%- endfor -%}
 {{ ns.result | tojson }}
+` : `
+{%- set ns = namespace(result=[]) -%}
+{%- for device_id in area_devices('${sanitizedAreaId}') -%}
+  {%- set device_name = device_attr(device_id, 'name') -%}
+  {%- set ns.result = ns.result + [{
+    'device_id': device_id,
+    'name': device_name,
+    'area_id': '${sanitizedAreaId}',
+    'entity_count': device_entities(device_id) | count
+  }] -%}
+{%- endfor -%}
+{{ ns.result | tojson }}
 `;
           } else {
             // Get all devices from all areas
-            // Use namespace to build list (append is unsafe in HA sandbox)
-            template = `
+            template = include_entities ? `
 {%- set ns = namespace(result=[]) -%}
 {%- for area_id in areas() -%}
   {%- for device_id in area_devices(area_id) -%}
@@ -167,6 +156,20 @@ export function registerOrganizationTools(): ToolDefinition[] {
       'area_id': area_id,
       'entity_ids': device_entities,
       'entity_count': device_entities | count
+    }] -%}
+  {%- endfor -%}
+{%- endfor -%}
+{{ ns.result | tojson }}
+` : `
+{%- set ns = namespace(result=[]) -%}
+{%- for area_id in areas() -%}
+  {%- for device_id in area_devices(area_id) -%}
+    {%- set device_name = device_attr(device_id, 'name') -%}
+    {%- set ns.result = ns.result + [{
+      'device_id': device_id,
+      'name': device_name,
+      'area_id': area_id,
+      'entity_count': device_entities(device_id) | count
     }] -%}
   {%- endfor -%}
 {%- endfor -%}
@@ -188,8 +191,14 @@ export function registerOrganizationTools(): ToolDefinition[] {
             );
           }
 
+          const totalCount = devices.length;
+          devices = devices.slice(0, actualLimit);
+
           return {
             count: devices.length,
+            total_available: totalCount,
+            limit: actualLimit,
+            has_more: totalCount > actualLimit,
             devices: devices
           };
         } catch (error: any) {

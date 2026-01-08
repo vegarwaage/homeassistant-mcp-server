@@ -29,16 +29,18 @@ export function registerConfigTools(): ToolDefinition[] {
   return [
     {
       name: 'ha_read_config',
-      description: 'Read Home Assistant configuration files from /config directory. Use this to view automations.yaml, scripts.yaml, configuration.yaml, secrets.yaml, or any other YAML/JSON config file. Essential for understanding existing automations before creating new ones, checking current configuration, or troubleshooting. Returns file content as text.',
+      description: 'Read Home Assistant configuration files from /config directory. Use max_lines to limit output for large files. Files over 50KB will show a warning. Use line_offset for pagination through large files.',
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Relative path from /config directory (e.g., "automations.yaml", "scripts.yaml", "configuration.yaml", "customize.yaml")' }
+          path: { type: 'string', description: 'Relative path from /config directory (e.g., "automations.yaml", "scripts.yaml", "configuration.yaml")' },
+          max_lines: { type: 'number', description: 'Maximum lines to return (default: unlimited, recommended: 500 for large files)' },
+          line_offset: { type: 'number', description: 'Skip first N lines for pagination (default: 0)' }
         },
         required: ['path']
       },
       handler: async (client: HomeAssistantClient, args: any) => {
-        const { path } = args;
+        const { path, max_lines, line_offset = 0 } = args;
 
         if (!path) {
           throw new Error('path is required');
@@ -46,12 +48,53 @@ export function registerConfigTools(): ToolDefinition[] {
 
         const fullPath = validatePath(path);
         const content = await fs.readFile(fullPath, 'utf-8');
+        const totalSize = content.length;
+        const lines = content.split('\n');
+        const totalLines = lines.length;
 
-        return {
+        // Apply line pagination if requested
+        let outputContent = content;
+        let linesReturned = totalLines;
+        let truncated = false;
+
+        if (max_lines || line_offset > 0) {
+          const startLine = Math.max(0, line_offset);
+          const endLine = max_lines ? startLine + max_lines : totalLines;
+          const selectedLines = lines.slice(startLine, endLine);
+          outputContent = selectedLines.join('\n');
+          linesReturned = selectedLines.length;
+          truncated = endLine < totalLines;
+        }
+
+        const response: any = {
           path,
-          content,
-          size: content.length
+          content: outputContent,
+          size_bytes: totalSize,
+          total_lines: totalLines,
+          lines_returned: linesReturned
         };
+
+        // Add pagination info if relevant
+        if (max_lines || line_offset > 0) {
+          response.pagination = {
+            line_offset: line_offset,
+            max_lines: max_lines || 'unlimited',
+            has_more: truncated,
+            next_offset: truncated ? line_offset + linesReturned : null
+          };
+        }
+
+        // Estimate tokens and add warnings
+        const estimatedTokens = Math.ceil(outputContent.length / 4);
+        response.estimated_tokens = estimatedTokens;
+
+        if (totalSize > 50000) {
+          response.warning = `Large file (${(totalSize / 1024).toFixed(1)}KB, ~${Math.ceil(totalSize / 4)} tokens). Consider using max_lines parameter to reduce context usage.`;
+        } else if (estimatedTokens > 10000) {
+          response.warning = `Response is ~${estimatedTokens} tokens. Consider using max_lines for pagination.`;
+        }
+
+        return response;
       }
     },
     {

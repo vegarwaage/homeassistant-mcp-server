@@ -25,10 +25,10 @@ export function registerHelpTools(): ToolDefinition[] {
         const capabilities = {
           server_info: {
             name: 'Home Assistant MCP Server',
-            version: '2.4.0',
-            total_tools: 136,
+            version: '2.5.0',
+            total_tools: 135,
             transport: process.env.TRANSPORT || 'stdio',
-            description: 'Full-featured MCP server for Home Assistant with 136 tools across entity management, automation, configuration, and system control. Supports HA 2024.8+ service responses and HA 2025+ target resolution.'
+            description: 'Full-featured MCP server for Home Assistant with 135 tools across entity management, automation, configuration, and system control. Supports HA 2024.8+ service responses and HA 2025+ target resolution. Features context-aware response limiting to avoid flooding LLM context windows.'
           },
 
           quick_start: {
