@@ -5,6 +5,101 @@ All notable changes to the Home Assistant MCP Server will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-01-08
+
+### Added
+
+#### Floor & Label Registry (12 new tools)
+- **Floor Management** (5 tools): List, create, update, delete floors; get entities by floor
+- **Label Management** (7 tools): List, create, update, delete labels; get entities/devices/areas by label
+
+#### Service Call Enhancements
+- `ha_call_service` now supports `floor_id` and `label_id` targeting (HA 2024.4+)
+- Multiple target types can be combined (entity_id, device_id, area_id, floor_id, label_id)
+
+#### WebSocket Improvements
+- Generic `sendCommand()` method for registry operations
+
+### Changed
+- Total tool count increased from 135 to 147 tools
+
+---
+
+## [2.5.0] - 2026-01-08
+
+### Added
+- Context-aware response limiting and pagination
+- `limit`, `offset`, and `minimal` parameters to ha_get_states (default: 50)
+- `limit` and `minimal` mode to ha_search_services (default: 50)
+- `limit` and `include_entities` option to ha_list_devices (default: 50)
+- `max_lines` and `line_offset` pagination to ha_read_config
+- `limit`, `type` filter, and `minimal` mode to ha_list_input_helpers
+- Global response size limiter with truncation at 200k chars
+- Standardized sanitization utilities (sanitizeId, sanitizeEntityId, etc.)
+- validateLimit, validateOffset, estimateTokens helpers
+
+### Changed
+- Remove duplicate ha_search_entities from advanced layer
+
+---
+
+## [2.4.0] - 2025-12-10
+
+### Added
+
+#### REST API Enhancements
+- `return_response` parameter to ha_call_service for services that return data (HA 2024.8+)
+- `no_attributes` parameter to ha_get_history for minimal responses
+- ha_get_components tool (GET /api/components)
+- ha_get_error_log tool (GET /api/error_log)
+- ha_check_config_rest tool (POST /api/config/core/check_config)
+
+#### WebSocket Improvements
+- `coalesce_messages` support for batched responses
+- `extract_from_target` command for resolving areas/floors/labels to entity IDs (HA 2025+)
+- `validateConfig` method for syntax validation
+- `getStates` method for efficient state retrieval
+
+#### Automation Template Enhancements
+- Support HA 2025.12 domain-specific triggers (light, climate, fan)
+- Target-first approach with area_id, floor_id, label_id support
+- condition_config and mode parameters
+
+#### History API Improvements
+- `state_filter` parameter for filtering by state values
+- `limit/offset` pagination parameters
+- ha_find_unavailable_devices tool for efficient offline detection
+
+### Changed
+- Dynamic transport imports to reduce bundle size
+
+---
+
+## [2.3.0] - 2025-11-xx
+
+### Added
+- Production-ready OAuth 2.1 for Claude.ai and mobile
+
+---
+
+## [2.2.0] - 2025-11-xx
+
+### Changed
+- Version bump for add-on update detection
+
+---
+
+## [2.1.0] - 2025-11-xx
+
+### Added
+- Improved Claude Code awareness
+- Production-ready HTTP transport with OAuth refresh and SQLite persistence
+
+### Fixed
+- Documentation improvements
+
+---
+
 ## [2.0.0] - 2025-10-26
 
 ### Added
