@@ -6,6 +6,7 @@ import { createScriptTools } from '../../src/domain/scripts';
 import { createHelperTools } from '../../src/domain/helpers';
 import { createAreaZoneTools } from '../../src/domain/areas-zones';
 import { createDeviceTools } from '../../src/domain/devices';
+import { createFloorTools, createLabelTools } from '../../src/domain/floors-labels';
 import { createAddonTools } from '../../src/system/addons';
 import { createIntegrationTools } from '../../src/system/integrations';
 import { createHACSTools } from '../../src/system/hacs';
@@ -104,7 +105,7 @@ describe('Layered Architecture Tools', () => {
 
     it('should create configuration search tools with expected tool names', () => {
       const tools = createConfigurationSearchTools(mockClient as any);
-      expect(tools.search_entities).toBeDefined();
+      // Note: search_entities was removed from advanced layer (now only in tools/search.ts)
       expect(tools.search_services).toBeDefined();
       expect(tools.search_automations).toBeDefined();
       expect(tools.search_config).toBeDefined();
@@ -134,7 +135,9 @@ describe('Layered Architecture Tools', () => {
         Object.keys(createScriptTools(mockClient as any)).length +
         Object.keys(createHelperTools(mockClient as any)).length +
         Object.keys(createAreaZoneTools(mockClient as any)).length +
-        Object.keys(createDeviceTools(mockClient as any)).length;
+        Object.keys(createDeviceTools(mockClient as any)).length +
+        Object.keys(createFloorTools(mockClient as any)).length +
+        Object.keys(createLabelTools(mockClient as any)).length;
 
       const systemToolCount =
         Object.keys(createAddonTools(mockClient as any)).length +
@@ -148,10 +151,12 @@ describe('Layered Architecture Tools', () => {
         Object.keys(createAutomationDebuggingTools(mockClient as any)).length +
         Object.keys(createAutomationHelperTools(mockClient as any)).length;
 
-      expect(domainToolCount).toBe(34);
+      // Domain: 34 base + 5 floor tools + 7 label tools = 46
+      expect(domainToolCount).toBe(46);
       expect(systemToolCount).toBe(26);
-      expect(advancedToolCount).toBe(13);
-      expect(domainToolCount + systemToolCount + advancedToolCount).toBe(73);
+      // Advanced: 12 (search_entities was removed in v2.5.0)
+      expect(advancedToolCount).toBe(12);
+      expect(domainToolCount + systemToolCount + advancedToolCount).toBe(84);
     });
   });
 });

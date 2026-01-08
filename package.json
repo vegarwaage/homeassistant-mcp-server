@@ -1,8 +1,8 @@
 {
   "name": "homeassistant-mcp-server",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "type": "module",
-  "description": "Home Assistant MCP Server with layered architecture (135 tools). Features context-aware response limiting, pagination, and size warnings.",
+  "description": "Home Assistant MCP Server with layered architecture (147 tools). Features floors, labels (HA 2024.4+), context-aware response limiting, and pagination.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

@@ -228,6 +228,37 @@ export class WebSocketClient {
     });
   }
 
+  /**
+   * Send a generic WebSocket command to Home Assistant
+   * Used for registry operations (floors, labels, areas, etc.)
+   *
+   * @param type - The WebSocket command type (e.g., 'config/floor_registry/list')
+   * @param data - Additional data to include in the message
+   * @returns The result from Home Assistant
+   */
+  async sendCommand(type: string, data: Record<string, any> = {}): Promise<any> {
+    await this.connect();
+
+    const id = this.messageId++;
+    const message: WSMessage = {
+      id,
+      type,
+      ...data
+    };
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(id, (result) => {
+        if (result.success) {
+          resolve(result.result);
+        } else {
+          reject(new Error(result.error?.message || `Command ${type} failed`));
+        }
+      });
+
+      this.ws!.send(JSON.stringify(message));
+    });
+  }
+
   disconnect(): void {
     if (this.ws) {
       this.ws.close();

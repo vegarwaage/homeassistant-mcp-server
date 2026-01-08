@@ -101,3 +101,21 @@ export interface Device {
   disabled_by?: string | null;
   entry_type?: string | null;
 }
+
+// Floor registry types (HA 2024.4+)
+export interface Floor {
+  floor_id: string;
+  name: string;
+  level?: number | null;
+  icon?: string | null;
+  aliases?: string[];
+}
+
+// Label registry types (HA 2024.4+)
+export interface Label {
+  label_id: string;
+  name: string;
+  icon?: string | null;
+  color?: string | null;
+  description?: string | null;
+}

@@ -15,6 +15,8 @@ import {
   createHelperTools,
   createAreaZoneTools,
   createDeviceTools,
+  createFloorTools,
+  createLabelTools,
 } from './domain/index.js';
 import {
   createAddonTools,
@@ -129,7 +131,7 @@ class HAMCPServer {
     this.server = new Server(
       {
         name: 'homeassistant-mcp-server',
-        version: '2.5.0',
+        version: '2.6.0',
       },
       {
         capabilities: {
@@ -284,6 +286,8 @@ class HAMCPServer {
       ...this.convertLayeredTools(createHelperTools(this.haClient)),
       ...this.convertLayeredTools(createAreaZoneTools(this.haClient)),
       ...this.convertLayeredTools(createDeviceTools(this.haClient)),
+      ...this.convertLayeredTools(createFloorTools(this.haClient)),
+      ...this.convertLayeredTools(createLabelTools(this.haClient)),
     ];
 
     const systemTools = [

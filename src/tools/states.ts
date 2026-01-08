@@ -142,20 +142,24 @@ export function registerStateTools(): ToolDefinition[] {
     },
     {
       name: 'ha_call_service',
-      description: 'Control Home Assistant devices by calling services. Common uses: turn lights on/off (light.turn_on/turn_off), control switches (switch.turn_on/turn_off), set climate temperature (climate.set_temperature), control media players (media_player.play/pause), trigger automations (automation.trigger), run scripts (script.turn_on). This is your primary tool for controlling and automating devices. Use return_response=true to get response data from services that support it (HA 2024.8+).',
+      description: 'Control Home Assistant devices by calling services. Common uses: turn lights on/off (light.turn_on/turn_off), control switches (switch.turn_on/turn_off), set climate temperature (climate.set_temperature), control media players (media_player.play/pause), trigger automations (automation.trigger), run scripts (script.turn_on). Supports targeting by entity_id, device_id, area_id, floor_id (HA 2024.4+), or label_id (HA 2024.4+). Use return_response=true for services that return data (HA 2024.8+).',
       inputSchema: {
         type: 'object',
         properties: {
           domain: { type: 'string', description: 'Service domain matching the entity type (e.g., "light", "switch", "climate", "automation", "script")' },
           service: { type: 'string', description: 'Service name - action to perform (e.g., "turn_on", "turn_off", "toggle", "set_temperature", "trigger")' },
-          entity_id: { type: 'string', description: 'Target entity ID to control (e.g., "light.living_room", "switch.bedroom_fan")' },
+          entity_id: { type: 'string', description: 'Target entity ID(s) to control. Can be single ID or comma-separated list.' },
+          device_id: { type: 'string', description: 'Target device ID(s). Can be single ID or comma-separated list.' },
+          area_id: { type: 'string', description: 'Target area ID(s). Affects all entities in the area(s). Can be single ID or comma-separated list.' },
+          floor_id: { type: 'string', description: 'Target floor ID(s) (HA 2024.4+). Affects all entities on the floor(s). Can be single ID or comma-separated list.' },
+          label_id: { type: 'string', description: 'Target label ID(s) (HA 2024.4+). Affects all entities with the label(s). Can be single ID or comma-separated list.' },
           service_data: { type: 'string', description: 'JSON string of additional parameters (e.g., \'{"brightness": 255}\' for lights, \'{"temperature": 21}\' for climate)' },
           return_response: { type: 'boolean', description: 'If true, returns response data from services that support it (HA 2024.8+). Required for services that always return data.' }
         },
         required: ['domain', 'service']
       },
       handler: async (client: HomeAssistantClient, args: any) => {
-        const { domain, service, entity_id, service_data, return_response } = args;
+        const { domain, service, entity_id, device_id, area_id, floor_id, label_id, service_data, return_response } = args;
 
         // Parse service_data JSON with error handling
         let parsedData;
@@ -167,10 +171,31 @@ export function registerStateTools(): ToolDefinition[] {
           }
         }
 
+        // Helper to parse comma-separated IDs into array
+        const parseIds = (ids: string | undefined): string[] | undefined => {
+          if (!ids) return undefined;
+          const parsed = ids.split(',').map(id => id.trim()).filter(id => id);
+          return parsed.length > 0 ? parsed : undefined;
+        };
+
+        // Build target object with all supported target types
+        const target: Record<string, any> = {};
+        const entityIds = parseIds(entity_id);
+        const deviceIds = parseIds(device_id);
+        const areaIds = parseIds(area_id);
+        const floorIds = parseIds(floor_id);
+        const labelIds = parseIds(label_id);
+
+        if (entityIds) target.entity_id = entityIds.length === 1 ? entityIds[0] : entityIds;
+        if (deviceIds) target.device_id = deviceIds.length === 1 ? deviceIds[0] : deviceIds;
+        if (areaIds) target.area_id = areaIds.length === 1 ? areaIds[0] : areaIds;
+        if (floorIds) target.floor_id = floorIds.length === 1 ? floorIds[0] : floorIds;
+        if (labelIds) target.label_id = labelIds.length === 1 ? labelIds[0] : labelIds;
+
         const result = await client.callService({
           domain,
           service,
-          target: entity_id ? { entity_id } : undefined,
+          target: Object.keys(target).length > 0 ? target : undefined,
           service_data: parsedData,
           return_response: return_response || false
         });

@@ -25,10 +25,10 @@ export function registerHelpTools(): ToolDefinition[] {
         const capabilities = {
           server_info: {
             name: 'Home Assistant MCP Server',
-            version: '2.5.0',
-            total_tools: 135,
+            version: '2.6.0',
+            total_tools: 147,
             transport: process.env.TRANSPORT || 'stdio',
-            description: 'Full-featured MCP server for Home Assistant with 135 tools across entity management, automation, configuration, and system control. Supports HA 2024.8+ service responses and HA 2025+ target resolution. Features context-aware response limiting to avoid flooding LLM context windows.'
+            description: 'Full-featured MCP server for Home Assistant with 147 tools across entity management, automation, configuration, and system control. Supports floors and labels (HA 2024.4+), service responses (HA 2024.8+), and target resolution (HA 2025+). Features context-aware response limiting to avoid flooding LLM context windows.'
           },
 
           quick_start: {
@@ -45,13 +45,18 @@ export function registerHelpTools(): ToolDefinition[] {
               key_tools: [
                 'ha_get_states - List all entities or filter by domain',
                 'ha_get_entity_details - Get complete info for specific entity',
-                'ha_call_service - Control devices (turn on/off, set values, etc.)',
-                'ha_get_history - Query historical state changes'
+                'ha_call_service - Control devices (supports floor_id, label_id, area_id targets)',
+                'ha_get_history - Query historical state changes',
+                'ha_floor_list - List all floors (building levels, HA 2024.4+)',
+                'ha_floor_entities - Get all entities on a floor',
+                'ha_label_list - List all labels (custom tags, HA 2024.4+)',
+                'ha_label_entities - Get all entities with a label'
               ],
               examples: [
                 'Turn on bedroom light: ha_call_service(domain="light", service="turn_on", entity_id="light.bedroom")',
-                'Check all sensors: ha_get_states(domain="sensor")',
-                'Get light details: ha_get_entity_details(entity_id="light.living_room")'
+                'Turn off entire floor: ha_call_service(domain="light", service="turn_off", floor_id="ground_floor")',
+                'Control by label: ha_call_service(domain="switch", service="turn_on", label_id="security")',
+                'List all floors: ha_floor_list()'
               ]
             },
 
