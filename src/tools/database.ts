@@ -65,8 +65,8 @@ export const databaseTools: Tool[] = [
     }
   },
   {
-    name: 'ha_get_statistics',
-    description: 'Query statistics tables for sensor data. Helper for statistics_meta and statistics tables.',
+    name: 'ha_query_statistics_db',
+    description: 'Query statistics tables for sensor data via direct SQL. Helper for statistics_meta and statistics tables.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -186,7 +186,7 @@ export async function handleDatabaseTool(
         return { entity_id, rows, count: rows.length, limit };
       }
 
-      case 'ha_get_statistics': {
+      case 'ha_query_statistics_db': {
         const { entity_id, start_time, end_time, limit = 100 } = args;
 
         let query = `
