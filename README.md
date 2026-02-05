@@ -1,5 +1,13 @@
 # Home Assistant MCP Server
 
+> **ARCHIVED** - This project has been replaced by:
+> - [ha-mcp](https://github.com/homeassistant-ai/ha-mcp) - Community-maintained HA MCP server (~97 tools, covers 95% of use cases)
+> - [ha-mcp-extras](https://github.com/vegarwaage/ha-mcp-extras) - Gap MCP server (21 tools: filesystem, database, system, integrations)
+>
+> Use both together for full coverage. This repo is kept for reference only.
+
+---
+
 MCP (Model Context Protocol) server for integrating Home Assistant with Claude Code and Claude Desktop.
 
 ## About
